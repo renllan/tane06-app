@@ -17,7 +17,14 @@ class HRVScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('HRV', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        title: const Text(
+          'HRV',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Padding(

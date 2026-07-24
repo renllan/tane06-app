@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
+import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
+import 'package:tane06_app/models/mock_blood_pressure_data.dart';
+import 'package:tane06_app/models/ui/screens/hrv_screen.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/models/ui/widgets/sparkline_painter.dart';
 
@@ -8,12 +11,14 @@ class MetricCard extends StatefulWidget {
   final HealthMetric metric;
   final bool isLarge;
   final int animationDelay;
+  final VoidCallback? onTap;
 
   const MetricCard({
     super.key,
     required this.metric,
     this.isLarge = false,
     this.animationDelay = 0,
+    this.onTap,
   });
 
   @override
@@ -108,13 +113,30 @@ class _MetricCardState extends State<MetricCard>
               borderRadius: BorderRadius.circular(20),
               splashColor: widget.metric.color.withOpacity(0.1),
               highlightColor: widget.metric.color.withOpacity(0.05),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => MetricDetailPage(metric: widget.metric),
-                  ),
-                );
-              },
+              onTap: widget.onTap ??
+                  () {
+                    if (widget.metric.label.toUpperCase() == 'BLOOD PRESSURE' ||
+                        (widget.metric.type == MetricType.bloodPressure &&
+                            widget.metric.label == 'Blood Pressure')) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BloodPressurePage(
+                            readings: generateMockBloodPressureReadings(),
+                          ),
+                        ),
+                      );
+                    } else if (widget.metric.label.toUpperCase() == 'HRV') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const HRVScreen()),
+                      );
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MetricDetailPage(metric: widget.metric),
+                        ),
+                      );
+                    }
+                  },
               child: Padding(
                 padding: EdgeInsets.all(widget.isLarge ? 20 : 16),
                 child: widget.isLarge
@@ -310,6 +332,7 @@ class _MetricCardState extends State<MetricCard>
               parent: _sparklineController,
               curve: Curves.easeInOut,
             ).value,
+            isHeartRate: widget.metric.type == MetricType.heartRate,
           ),
           size: Size.infinite,
         );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:tane06_app/models/ui/screens/home_page.dart';
+import 'package:tane06_app/models/ui/screens/login_page.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 
 void main() {
@@ -25,7 +25,7 @@ class TanE06App extends StatelessWidget {
       title: 'TanE-06 Health',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.wellnessTheme,
-      home: const HomePage(),
+      home: const LoginPage(),
     );
   }
 }

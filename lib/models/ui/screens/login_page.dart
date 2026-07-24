@@ -2,7 +2,12 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:tane06_app/theme/app_theme.dart';
+import 'package:tane06_app/services/auth_service.dart';
+import 'package:tane06_app/models/api_response.dart';
+import 'package:tane06_app/models/device.dart';
+import 'package:tane06_app/repositories/device_repository.dart';
 import 'package:tane06_app/models/ui/screens/home_page.dart';
+import 'package:tane06_app/models/ui/screens/register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,13 +17,18 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController(text: 'test@example.com');
+  final _passwordController = TextEditingController(text: '12345678');
   final _formKey = GlobalKey<FormState>();
+
+  final AuthService _authService = AuthService();
+  final DeviceRepository _deviceRepository = DeviceRepository();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _rememberMe = false;
+  bool _agreeToTerms = false;
+  String? _errorMessage;
 
   late AnimationController _bgPulseController;
   late AnimationController _fadeController;
@@ -74,27 +84,91 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  int? _extractUserId(Map<String, dynamic> response) {
+    dynamic rawId;
+    if (response['data'] is Map<String, dynamic>) {
+      final data = response['data'] as Map<String, dynamic>;
+      rawId = data['userId'] ??
+          data['user_id'] ??
+          data['id'] ??
+          (data['user'] is Map
+              ? (data['user']['id'] ?? data['user']['userId'] ?? data['user']['user_id'])
+              : null);
+    }
+    rawId ??= response['userId'] ?? response['user_id'] ?? response['id'];
+
+    if (rawId is int) return rawId;
+    if (rawId is String) return int.tryParse(rawId);
+    return null;
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    if (!_agreeToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please agree to the Service Agreement & Privacy Policy before logging in.',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.heartRate,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
 
-    // Simulate network request
-    await Future.delayed(const Duration(milliseconds: 1500));
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    try {
+      final loginResponse = await _authService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const HomePage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-      ),
-    );
+      final userId = _extractUserId(loginResponse);
+      List<Device> userDevices = [];
+
+      if (userId != null) {
+        try {
+          userDevices = await _deviceRepository.listUserDevices(userId: userId);
+        } catch (e) {
+          debugPrint('Failed to retrieve bound devices for userId $userId: $e');
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => HomePage(
+            userId: userId,
+            initialDevices: userDevices.isNotEmpty ? userDevices : null,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.error.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'An unexpected error occurred. Please try again.';
+      });
+    }
   }
 
   @override
@@ -315,6 +389,36 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.heartRate.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.heartRate.withOpacity(0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            color: AppColors.heartRate, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: AppColors.heartRate,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 _buildTextField(
                   controller: _emailController,
@@ -351,6 +455,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 16),
                 _buildOptionsRow(),
+                const SizedBox(height: 16),
+                _buildAgreementRow(),
                 const SizedBox(height: 24),
                 _buildLoginButton(),
               ],
@@ -520,6 +626,146 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAgreementRow() {
+    return GestureDetector(
+      onTap: () => setState(() => _agreeToTerms = !_agreeToTerms),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: _agreeToTerms ? const Color(0xFF5E5CE6) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: _agreeToTerms ? const Color(0xFF5E5CE6) : AppColors.textTertiary,
+                width: 1.5,
+              ),
+            ),
+            child: _agreeToTerms
+                ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text(
+                  'I agree to the ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _showServiceAgreementModal,
+                  child: const Text(
+                    'Service Agreement & Privacy Policy',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF5E5CE6),
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showServiceAgreementModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.72,
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceDark,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.description_rounded, color: Color(0xFF5E5CE6), size: 24),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Service Agreement & Privacy Policy',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const Divider(height: 20, color: Colors.white12),
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Text(
+                    'TanE-06 Health Telemetry Service Agreement\n\n'
+                    '1. Acceptance of Terms\n'
+                    'By checking the agreement box and accessing TanE-06, you agree to comply with and be bound by these service terms.\n\n'
+                    '2. Health Telemetry Privacy & Data Encryption\n'
+                    'Your personal health metrics (Heart Rate, SpO2, HRV, Sleep telemetry) are encrypted in transit and stored in compliance with privacy regulations.\n\n'
+                    '3. Wellness & Non-Clinical Disclaimer\n'
+                    'TanE-06 health monitoring features are intended for fitness, wellness, and general health tracking. They do not constitute official clinical medical advice.\n\n'
+                    '4. Account Security\n'
+                    'Users are responsible for keeping account access credentials confidential and reporting unauthorized access.\n\n'
+                    '5. Continuous Service Enhancements\n'
+                    'Algorithm and feature updates may be provided periodically to enhance system accuracy and performance.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.6,
+                      color: AppColors.textSecondary.withOpacity(0.9),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() => _agreeToTerms = true);
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E5CE6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text(
+                    'I Agree to Terms',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -701,7 +947,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         ),
         GestureDetector(
           onTap: () {
-            // TODO: Navigate to sign up
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const RegisterPage(),
+              ),
+            );
           },
           child: const Text(
             'Sign Up',
