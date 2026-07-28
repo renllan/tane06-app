@@ -211,14 +211,21 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
           final maxHr = hrVals.reduce(math.max).toInt();
           displayValue = '$minHr - $maxHr';
         } else {
-          displayValue = '62 - 134';
+          displayValue = '--';
         }
+      } else if (widget.imei != null && widget.imei!.isNotEmpty) {
+        displayValue = '--';
       } else {
-        displayValue = '62 - 134';
+        displayValue = metric.value;
       }
     } else {
-      displayValue = _latestApiValue ?? metric.value;
+      if (widget.imei != null && widget.imei!.isNotEmpty) {
+        displayValue = _latestApiValue ?? '--';
+      } else {
+        displayValue = _latestApiValue ?? metric.value;
+      }
     }
+
 
     final sparkData = _dynamicSparkline ?? metric.sparklineData;
 
@@ -257,10 +264,20 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            if (widget.imei != null && widget.imei!.isNotEmpty) {
+              await _fetchMetricApiData();
+            } else {
+              await Future.delayed(const Duration(milliseconds: 400));
+            }
+          },
+          color: metric.color,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Hero Summary Card
               Container(
@@ -535,8 +552,11 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
           ),
         ),
       ),
+    ),
     );
   }
+
+
 
   Widget _buildInsightCard({
     required String title,

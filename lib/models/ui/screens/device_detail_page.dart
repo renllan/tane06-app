@@ -34,6 +34,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
     if (_latestReadings.containsKey(key)) {
       return _latestReadings[key]!;
     }
+    if (widget.device.imei != null && widget.device.imei!.isNotEmpty) {
+      return '--';
+    }
     switch (key) {
       case 'heart-rate':
         return '62 - 134 bpm';
@@ -47,6 +50,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         return '—';
     }
   }
+
 
   late AnimationController _pulseController;
   late AnimationController _entryController;
@@ -86,60 +90,88 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
     super.dispose();
   }
 
-  bool get _isOnline => widget.device.isOnline;
+  Device? _fetchedDevice;
+  Device get _currentDevice => _fetchedDevice ?? widget.device;
+
+  bool get _isOnline => _currentDevice.isOnline;
   bool get _hasAlert =>
-      widget.device.statusLabel.contains('偏高') ||
-      widget.device.statusLabel.contains('異常');
-  bool get _isLowBattery => widget.device.batteryPercent < 20;
+      _currentDevice.statusLabel.contains('偏高') ||
+      _currentDevice.statusLabel.contains('異常');
+  bool get _isLowBattery => _currentDevice.batteryPercent < 20;
+
+  Future<void> _refreshDeviceData() async {
+    final imeiToUse = _currentDevice.imei;
+    if (imeiToUse != null && imeiToUse.isNotEmpty) {
+      try {
+        final fetched = await _deviceRepository.getDevice(imei: imeiToUse);
+        if (mounted) {
+          setState(() {
+            _fetchedDevice = fetched;
+          });
+        }
+      } catch (_) {}
+    }
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F8),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverAppBar(context),
-          SliverToBoxAdapter(
-            child: FadeTransition(
-              opacity: _entryFade,
-              child: SlideTransition(
-                position: _entrySlide,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 12),
-                      _buildStatusStrip(),
-                      const SizedBox(height: 24),
-                      _buildSectionLabel('Vital Signs'),
-                      const SizedBox(height: 14),
-                      _buildVitalsGrid(),
-                      const SizedBox(height: 14),
-                      SleepOverviewCard(
-                        imei: widget.device.imei,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSectionLabel('Activity Today'),
-                      const SizedBox(height: 14),
-                      _buildActivityRow(),
-                      const SizedBox(height: 24),
-                      QuickActionWidget(imei: widget.device.imei),
-                      const SizedBox(height: 20),
-                      _buildDeviceInfo(),
-                      const SizedBox(height: 48),
-                    ],
+      body: RefreshIndicator(
+        onRefresh: _refreshDeviceData,
+        color: AppColors.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            _buildSliverAppBar(context),
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _entryFade,
+                child: SlideTransition(
+                  position: _entrySlide,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        _buildStatusStrip(),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel('Vital Signs'),
+                        const SizedBox(height: 14),
+                        _buildVitalsGrid(),
+                        const SizedBox(height: 14),
+                        SleepOverviewCard(
+                          imei: widget.device.imei,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel('Activity Today'),
+                        const SizedBox(height: 14),
+                        _buildActivityRow(),
+                        const SizedBox(height: 24),
+                        QuickActionWidget(imei: widget.device.imei),
+                        const SizedBox(height: 20),
+                        _buildDeviceInfo(),
+                        const SizedBox(height: 48),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+
+
 
   // ── Sliver App Bar / Hero Header ──────────────────────────────────────────
 
@@ -181,7 +213,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
             final res = await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => DeviceSettingsPage(
-                    imei: widget.device.imei ?? '868705080300689'),
+                    imei: widget.device.imei ?? widget.device.id),
               ),
             );
             if (res == 'unbound' && mounted) {
@@ -270,13 +302,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                           maxLines: 1,
                         ),
                         const SizedBox(height: 5),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             _onlinePill(),
-                            if (_hasAlert) ...[
-                              const SizedBox(width: 8),
-                              _alertPill(),
-                            ],
+                            if (_hasAlert) _alertPill(),
                           ],
                         ),
                       ],
@@ -302,7 +333,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          '${widget.device.batteryPercent}%',
+                          '${_currentDevice.batteryPercent}%',
                           style: GoogleFonts.dmSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -415,12 +446,16 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
           const Icon(Icons.warning_amber_rounded,
               color: Colors.redAccent, size: 12),
           const SizedBox(width: 5),
-          Text(
-            widget.device.statusLabel,
-            style: GoogleFonts.dmSans(
-              color: Colors.redAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              widget.device.statusLabel,
+              style: GoogleFonts.dmSans(
+                color: Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],
@@ -461,7 +496,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   }
 
   IconData _batteryIcon() {
-    final pct = widget.device.batteryPercent;
+    final pct = _currentDevice.batteryPercent;
     if (pct >= 80) return Icons.battery_full_rounded;
     if (pct >= 50) return Icons.battery_5_bar_rounded;
     if (pct >= 20) return Icons.battery_3_bar_rounded;
@@ -486,18 +521,22 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       ),
       child: Row(
         children: [
-          _statusChip(
-            icon: Icons.watch_rounded,
-            label: widget.device.model ?? 'TanE-06',
-            color: AppColors.primary,
+          Flexible(
+            child: _statusChip(
+              icon: Icons.watch_rounded,
+              label: widget.device.model ?? 'TanE-06',
+              color: AppColors.primary,
+            ),
           ),
-          const Spacer(),
-          _statusChip(
-            icon: Icons.calendar_today_rounded,
-            label: _formatBindDate(),
-            color: AppColors.textSecondary,
+          const SizedBox(width: 8),
+          Flexible(
+            child: _statusChip(
+              icon: Icons.calendar_today_rounded,
+              label: _formatBindDate(),
+              color: AppColors.textSecondary,
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           _refreshButton(),
         ],
       ),
@@ -513,12 +552,16 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       children: [
         Icon(icon, color: color, size: 15),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: color,
+        Flexible(
+          child: Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
         ),
       ],
@@ -639,7 +682,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         ),
       ),
       _VitalConfig(
-        icon: Icons.speed_rounded,
+        icon: Icons.monitor_heart_rounded,
         label: 'Blood Pressure',
         value: '120/78',
         unit: 'mmHg',
@@ -731,29 +774,36 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                   fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             // Value + unit
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: v.value,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: v.value,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  TextSpan(
-                    text: ' ${v.unit}',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
+                    TextSpan(
+                      text: ' ${v.unit}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             if (v.onTap != null) ...[
@@ -944,27 +994,31 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(height: 6),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: value,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    height: 1.1,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: value,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      height: 1.1,
+                    ),
                   ),
-                ),
-                TextSpan(
-                  text: ' $unit',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
+                  TextSpan(
+                    text: ' $unit',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 2),
@@ -975,6 +1029,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
               color: AppColors.textTertiary,
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1108,7 +1164,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       (
         key: 'blood-pressure',
         label: 'Blood Pressure',
-        icon: Icons.speed_rounded,
+        icon: Icons.monitor_heart_rounded,
         color: const Color(0xFFF97316),
         bgColor: const Color(0xFFFFF6EE),
         onTap: () => Navigator.of(context).push(
@@ -1354,13 +1410,18 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        const Spacer(),
-                        Text(
-                          rows[i].$2,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            rows[i].$2,
+                            textAlign: TextAlign.end,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ],

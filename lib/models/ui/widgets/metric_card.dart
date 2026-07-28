@@ -12,6 +12,7 @@ class MetricCard extends StatefulWidget {
   final bool isLarge;
   final int animationDelay;
   final VoidCallback? onTap;
+  final String? imei;
 
   const MetricCard({
     super.key,
@@ -19,6 +20,7 @@ class MetricCard extends StatefulWidget {
     this.isLarge = false,
     this.animationDelay = 0,
     this.onTap,
+    this.imei,
   });
 
   @override
@@ -122,6 +124,7 @@ class _MetricCardState extends State<MetricCard>
                         MaterialPageRoute(
                           builder: (_) => BloodPressurePage(
                             readings: generateMockBloodPressureReadings(),
+                            imei: widget.imei,
                           ),
                         ),
                       );
@@ -271,51 +274,55 @@ class _MetricCardState extends State<MetricCard>
   }
 
   Widget _buildValueRow() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          widget.metric.value,
-          style: TextStyle(
-            fontSize: widget.isLarge ? 36 : 28,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-            letterSpacing: -1,
-            height: 1,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text(
-            widget.metric.unit,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(
+            widget.metric.value,
             style: TextStyle(
-              fontSize: widget.isLarge ? 14 : 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
+              fontSize: widget.isLarge ? 36 : 28,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              letterSpacing: -1,
+              height: 1,
             ),
           ),
-        ),
-        if (widget.metric.secondaryValue != null) ...[
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: widget.metric.color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
             child: Text(
-              '${widget.metric.secondaryValue} ${widget.metric.secondaryUnit ?? ''}',
+              widget.metric.unit,
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: widget.metric.color,
+                fontSize: widget.isLarge ? 14 : 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
               ),
             ),
           ),
+          if (widget.metric.secondaryValue != null) ...[
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: widget.metric.color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${widget.metric.secondaryValue} ${widget.metric.secondaryUnit ?? ''}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: widget.metric.color,
+                ),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 

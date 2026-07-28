@@ -118,6 +118,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  String? get _firstImei {
+    for (final d in _devices) {
+      if (d.imei != null && d.imei!.isNotEmpty) return d.imei;
+    }
+    return _devices.isNotEmpty ? _devices.first.id : null;
+  }
+
   @override
   void dispose() {
     _headerController.dispose();
@@ -129,16 +136,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader()),
-            if (_currentIndex == 1)
-              SliverToBoxAdapter(child: _buildAnalyticsSection())
-            else
-              SliverToBoxAdapter(child: _buildDevicesSection()),
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _loadUserDevices();
+          },
+          color: AppColors.primary,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader()),
+              if (_currentIndex == 1)
+                SliverToBoxAdapter(child: _buildAnalyticsSection())
+              else
+                SliverToBoxAdapter(child: _buildDevicesSection()),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -151,7 +166,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       label: 'Blood Pressure',
       value: '120/78',
       unit: 'mmHg',
-      icon: Icons.speed_rounded,
+      icon: Icons.monitor_heart_rounded,
       color: AppColors.bloodPressure,
       glowColor: AppColors.bloodPressureGlow,
       gradient: AppColors.bloodPressureGradient,
@@ -227,11 +242,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 MaterialPageRoute(
                   builder: (_) => BloodPressurePage(
                     readings: generateMockBloodPressureReadings(),
+                    imei: _firstImei,
                   ),
                 ),
               );
             },
-            child: MetricCard(metric: bpMetric, isLarge: true),
+            child: MetricCard(metric: bpMetric, isLarge: true, imei: _firstImei),
           ),
           const SizedBox(height: 16),
           const SleepOverviewCard(),
@@ -287,15 +303,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           Row(
             children: [
-              const Text('我的設備',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    const Text('我的設備',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                    Text('${_devices.length} 個設備',
+                        style: const TextStyle(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
               const SizedBox(width: 8),
-              Text('${_devices.length} 個設備',
-                  style: const TextStyle(color: AppColors.textSecondary)),
-              const Spacer(),
               ElevatedButton.icon(
                 onPressed: _openAddDevicePage,
                 icon: const Icon(Icons.add_rounded, size: 16),
@@ -484,22 +507,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       Row(children: [
                         const Text('在線 | 配戴中', style: TextStyle(color: AppColors.textSecondary)),
                         const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () {
-                            if (d.statusLabel.contains('血壓')) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => BloodPressurePage(
-                                    readings: generateMockBloodPressureReadings(),
+                        Flexible(
+                          child: GestureDetector(
+                            onTap: () {
+                              if (d.statusLabel.contains('血壓')) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BloodPressurePage(
+                                      readings: generateMockBloodPressureReadings(),
+                                      imei: d.imei ?? d.id,
+                                    ),
                                   ),
-                                ),
-                              );
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: accent.withOpacity(0.9), borderRadius: BorderRadius.circular(8)),
-                            child: Text(d.statusLabel, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: accent.withOpacity(0.9), borderRadius: BorderRadius.circular(8)),
+                              child: Text(
+                                d.statusLabel,
+                                style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
                           ),
                         ),
                       ]),
@@ -515,15 +546,31 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               children: [
                 _vitalItem(Icons.favorite, '心率', '${d.heartRate} bpm', AppColors.heartRate),
                 _vitalItem(Icons.water_drop_rounded, '血氧', '${d.spo2} %', AppColors.bloodPressure),
-                _vitalItem(Icons.battery_full_rounded, '電量', '${d.batteryPercent}%', AppColors.textPrimary),
+                _vitalItem(
+                  d.batteryPercent >= 80
+                      ? Icons.battery_full_rounded
+                      : (d.batteryPercent >= 30
+                          ? Icons.battery_5_bar_rounded
+                          : Icons.battery_alert_rounded),
+                  '電量',
+                  '${d.batteryPercent}%',
+                  d.batteryPercent <= 20
+                      ? const Color(0xFFFF453A)
+                      : AppColors.textPrimary,
+                ),
               ],
             ),
             const SizedBox(height: 12),
             // bottom row: last updated and chevron
-            const Row(
+            Row(
               children: [
-                Text('最後更新：2 分鐘前', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                Spacer(),
+                Expanded(
+                  child: Text(
+                    '最後更新：2 分鐘前',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
               ],
             ),

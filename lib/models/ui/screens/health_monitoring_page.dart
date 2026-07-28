@@ -136,7 +136,7 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
       title: 'Blood Pressure',
       apiType: 'BP',
       fallbacks: ['bp', 'blood-pressure'],
-      icon: Icons.speed_rounded,
+      icon: Icons.monitor_heart_rounded,
       color: const Color(0xFFF97316),
       bgColor: const Color(0xFFFFF6EE),
       unit: 'mmHg',
@@ -409,6 +409,7 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
       onRefresh: () => _fetchMetric(idx),
       color: cfg.color,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(20),
         children: [
           // Summary card
@@ -934,46 +935,50 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '$latestVal',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 38,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -1,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'bpm',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white60,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: latestColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: latestColor.withOpacity(0.4)),
-                        ),
-                        child: Text(
-                          latestZone,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '$latestVal',
                           style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: latestColor,
+                            fontSize: 38,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -1,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 5),
+                        Text(
+                          'bpm',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white60,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: latestColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: latestColor.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            latestZone,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: latestColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

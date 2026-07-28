@@ -9,7 +9,7 @@ class DeviceSettingsPage extends StatefulWidget {
 
   const DeviceSettingsPage({
     super.key,
-    this.imei = '868705080300689',
+    required this.imei,
   });
 
   @override
@@ -161,29 +161,35 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
     }
 
     // Loaded state
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildDeviceHeader(),
-          const SizedBox(height: 24),
-          const Text(
-            '設定分類',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+    return RefreshIndicator(
+      onRefresh: _loadSettings,
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDeviceHeader(),
+            const SizedBox(height: 24),
+            const Text(
+              '設定分類',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _buildCategoryList(),
-          const SizedBox(height: 24),
-          _buildUnbindSection(),
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 12),
+            _buildCategoryList(),
+            const SizedBox(height: 24),
+            _buildUnbindSection(),
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
+
   }
 
   Widget _buildUnbindSection() {

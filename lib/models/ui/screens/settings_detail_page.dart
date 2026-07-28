@@ -450,13 +450,20 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
         // Blood Pressure Section
         _buildCardGroup(
           title: '血壓監測與預警',
-          icon: Icons.speed_rounded,
+          icon: Icons.monitor_heart_rounded,
           iconColor: AppColors.bloodPressure,
           children: [
             _buildSwitchTile(
               title: '定時自動血壓量測',
               value: bp['timer_measure']['switch_state'] == 1,
               onChanged: (v) => setState(() => bp['timer_measure']['switch_state'] = v ? 1 : 0),
+            ),
+            _buildNumberTile(
+              title: '血壓量測頻率 (Measure Frequency)',
+              value: (bp['interval'] == '0' || bp['interval'] == 0)
+                  ? '手動 / 關閉'
+                  : '${bp['interval'] ?? "60"} 分鐘/次',
+              onTap: () => _showBpIntervalDialog(bp),
             ),
             _buildInfoTile('早晨定時量測時間', bp['timer_measure']['am_time']),
             _buildInfoTile('傍晚定時量測時間', bp['timer_measure']['pm_time']),
@@ -485,6 +492,7 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
             ),
           ],
         ),
+
 
         const SizedBox(height: 16),
 
@@ -1056,7 +1064,7 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
       child: Column(
@@ -1068,12 +1076,14 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
               children: [
                 Icon(icon, size: 20, color: iconColor),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -1102,6 +1112,7 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
               style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
             ),
           ),
+          const SizedBox(width: 8),
           Switch(
             value: value,
             activeColor: AppColors.primary,
@@ -1116,15 +1127,27 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(title, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 130,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],
@@ -1142,22 +1165,37 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(title, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 130,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.edit_outlined, size: 14, color: AppColors.textTertiary),
-              ],
+                  const SizedBox(width: 4),
+                  const Icon(Icons.edit_outlined, size: 14, color: AppColors.textTertiary),
+                ],
+              ),
             ),
           ],
         ),
@@ -1165,7 +1203,9 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     );
   }
 
+
   void _editValue(String title, String currentValue, ValueChanged<String> onSaved) {
+
     final controller = TextEditingController(text: currentValue);
     showDialog(
       context: context,
@@ -1430,7 +1470,13 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     required String actionName,
     required String successMsg,
   }) async {
-    final imeiToUse = widget.imei ?? '868705080300689';
+    final imeiToUse = widget.imei;
+    if (imeiToUse == null || imeiToUse.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未提供裝置 IMEI，無法發送遠端指令')),
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -1653,4 +1699,126 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
       onPicked(formattedRaw);
     }
   }
+
+  void _showBpIntervalDialog(Map<String, dynamic> bp) {
+    final currentVal = bp['interval']?.toString() ?? '60';
+    final controller = TextEditingController(text: currentVal);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.monitor_heart_rounded, color: AppColors.bloodPressure),
+              SizedBox(width: 8),
+              Text('血壓量測頻率設定', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '選擇常用頻率或手動輸入分鐘數：',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    '10',
+                    '15',
+                    '30',
+                    '60',
+                    '120',
+                    '0',
+                  ].map((minutes) {
+                    final isSelected = controller.text == minutes;
+                    final label = minutes == '0' ? '手動/關閉' : '$minutes 分';
+                    return ChoiceChip(
+                      label: Text(label),
+                      selected: isSelected,
+                      selectedColor: AppColors.bloodPressure.withOpacity(0.2),
+                      onSelected: (selected) {
+                        if (selected) {
+                          setDialogState(() {
+                            controller.text = minutes;
+                          });
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '手動輸入頻率 (分鐘)',
+                    hintText: '輸入任意分鐘數, 例: 45',
+                    prefixIcon: const Icon(Icons.timer_outlined, color: AppColors.bloodPressure),
+                    suffixText: '分鐘',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final input = controller.text.trim();
+                final intervalValue = (int.tryParse(input) ?? 60).toString();
+                setState(() {
+                  bp['interval'] = intervalValue;
+                });
+                if (widget.imei != null && widget.imei!.isNotEmpty) {
+                  try {
+                    await _deviceRepository.saveSettings(
+                      imei: widget.imei!,
+                      patch: {
+                        'health': {
+                          'blood_pressure': {
+                            'interval': intervalValue,
+                          }
+                        }
+                      },
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('已設定血壓量測頻率為 $intervalValue 分鐘並同步至伺服器')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('同步至伺服器失敗: $e')),
+                      );
+                    }
+                  }
+                }
+                if (mounted) Navigator.of(ctx).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.bloodPressure,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('儲存設定', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+

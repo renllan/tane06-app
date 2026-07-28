@@ -71,7 +71,7 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
       type: QuickActionType.measureBloodPressure,
       label: '測量血壓',
       description: 'Blood Pressure',
-      icon: Icons.speed_rounded,
+      icon: Icons.monitor_heart_rounded,
       color: Color(0xFFF97316),
       bgColor: Color(0xFFFFF6EE),
     ),
@@ -254,15 +254,27 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
           ],
         ),
         const SizedBox(height: 12),
-        // Circle buttons row — evenly spread across full width
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _actionItems.map((item) {
-            final isLoading = _loadingMap[item.type] ?? false;
-            return Expanded(
-              child: _buildCircleButton(item, isLoading),
-            );
-          }).toList(),
+        // Circle buttons grid (2 rows of 4 items)
+        Column(
+          children: [
+            Row(
+              children: _actionItems.sublist(0, 4).map((item) {
+                final isLoading = _loadingMap[item.type] ?? false;
+                return Expanded(
+                  child: _buildCircleButton(item, isLoading),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: _actionItems.sublist(4, 8).map((item) {
+                final isLoading = _loadingMap[item.type] ?? false;
+                return Expanded(
+                  child: _buildCircleButton(item, isLoading),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       ],
     );

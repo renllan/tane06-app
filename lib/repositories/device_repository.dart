@@ -18,7 +18,7 @@ class DeviceRepository {
 
   /// Binds a device to [userId].
   Future<Device> bindDevice({
-    int userId = 1,
+    dynamic userId = 1,
     required String imei,
     String? name,
     String model = 'TanE06',
@@ -34,7 +34,7 @@ class DeviceRepository {
 
   /// Unbinds (removes) a device from [userId].
   Future<Map<String, dynamic>> unbindDevice({
-    int userId = 1,
+    dynamic userId = 1,
     required String imei,
   }) async {
     return await _api.unbindDevice(
@@ -44,11 +44,13 @@ class DeviceRepository {
   }
 
   /// Fetches a list of devices bound to [userId].
-  Future<List<Device>> listUserDevices({required int userId}) async {
+  Future<List<Device>> listUserDevices({required dynamic userId}) async {
     final data = await _api.listUserDevices(userId: userId);
-    final items = data['items'] as List? ?? [];
+    final rawItems = data['items'] ?? data['devices'] ?? data['records'] ?? data['list'] ?? data['data'];
+    final items = rawItems is List ? rawItems : [];
     return items
-        .map((e) => Device.fromJson(e as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map((e) => Device.fromJson(e))
         .toList();
   }
 

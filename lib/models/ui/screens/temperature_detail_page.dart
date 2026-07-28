@@ -96,15 +96,34 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
         imei: widget.imei!,
         type: 'BT',
       );
-      if (records.isNotEmpty && mounted) {
-        records.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-        final latest = records.last;
-        final val = _extractTemp(latest);
-        if (val != null) setState(() => _currentTemp = val);
+      if (mounted) {
+        if (records.isNotEmpty) {
+          records.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          final latest = records.last;
+          final val = _extractTemp(latest);
+          if (val != null) setState(() => _currentTemp = val);
+
+          final List<_TempRecord> realHistory = [];
+          for (final r in records) {
+            final t = _extractTemp(r);
+            if (t != null) {
+              realHistory.add(_TempRecord(hour: r.dateTime.hour, temp: t));
+            }
+          }
+          if (realHistory.isNotEmpty) {
+            setState(() => _history = realHistory);
+          }
+        } else {
+          setState(() {
+            _history = [];
+            _currentTemp = 0.0;
+          });
+        }
       }
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
   }
+
 
   double? _extractTemp(HealthDataRecord r) {
     final d = r.data;
@@ -193,35 +212,49 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverHeader(context),
-          SliverFadeTransition(
-            opacity: _entryAnim,
-            sliver: SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildStatusCard(),
-                  const SizedBox(height: 20),
-                  _buildZoneLegend(),
-                  const SizedBox(height: 20),
-                  _buildTrendChart(),
-                  const SizedBox(height: 20),
-                  _buildTip(),
-                  if (widget.imei != null && widget.imei!.isNotEmpty) ...[
+      body: RefreshIndicator(
+        onRefresh: () async {
+          if (widget.imei != null && widget.imei!.isNotEmpty) {
+            await _fetchData();
+          } else {
+            await Future.delayed(const Duration(milliseconds: 400));
+          }
+        },
+
+        color: const Color(0xFFFF9F0A),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            _buildSliverHeader(context),
+            SliverFadeTransition(
+              opacity: _entryAnim,
+              sliver: SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildStatusCard(),
                     const SizedBox(height: 20),
-                    _buildMeasureButton(),
-                  ],
-                ]),
+                    _buildZoneLegend(),
+                    const SizedBox(height: 20),
+                    _buildTrendChart(),
+                    const SizedBox(height: 20),
+                    _buildTip(),
+                    if (widget.imei != null && widget.imei!.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      _buildMeasureButton(),
+                    ],
+                  ]),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
 
   // ── Sliver app bar ──────────────────────────────────────────────────────────
 
@@ -333,7 +366,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              _currentTemp.toStringAsFixed(1),
+                              _currentTemp == 0.0 ? '--' : _currentTemp.toStringAsFixed(1),
                               style: GoogleFonts.dmSans(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
@@ -361,10 +394,11 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${_currentTemp.toStringAsFixed(1)} °C',
+                        _currentTemp == 0.0 ? '-- °C' : '${_currentTemp.toStringAsFixed(1)} °C',
                         style: GoogleFonts.dmSans(
                           fontSize: 36,
                           fontWeight: FontWeight.w900,
+
                           color: Colors.white,
                           height: 1.0,
                           letterSpacing: -1,
@@ -385,6 +419,8 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -409,10 +445,12 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
   // ── Status stats card ────────────────────────────────────────────────────────
 
   Widget _buildStatusCard() {
-    final min = _history.map((r) => r.temp).reduce(math.min);
-    final max = _history.map((r) => r.temp).reduce(math.max);
-    final avg = _history.map((r) => r.temp).reduce((a, b) => a + b) /
-        _history.length;
+    final temps = _history.map((r) => r.temp).toList();
+    final min = temps.isEmpty ? _currentTemp : temps.reduce(math.min);
+    final max = temps.isEmpty ? _currentTemp : temps.reduce(math.max);
+    final avg = temps.isEmpty
+        ? _currentTemp
+        : temps.reduce((a, b) => a + b) / temps.length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -470,12 +508,16 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.dmSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.dmSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -555,6 +597,8 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     Text(
                       z.label,
@@ -564,6 +608,8 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                         color: isCurrent ? z.color : AppColors.textSecondary,
                       ),
                       textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ],
                 ),
@@ -578,9 +624,43 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
   // ── 24-h trend chart ──────────────────────────────────────────────────────
 
   Widget _buildTrendChart() {
+    if (_history.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.show_chart_rounded, size: 36, color: AppColors.textTertiary),
+              const SizedBox(height: 8),
+              Text(
+                '今日尚無體溫趨勢紀錄',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final temps = _history.map((r) => r.temp).toList();
-    final minT = temps.reduce(math.min) - 0.5;
-    final maxT = temps.reduce(math.max) + 0.5;
+    final minT = (temps.isEmpty ? _currentTemp : temps.reduce(math.min)) - 0.5;
+    final maxT = (temps.isEmpty ? _currentTemp : temps.reduce(math.max)) + 0.5;
+
 
     return Container(
       padding: const EdgeInsets.all(20),

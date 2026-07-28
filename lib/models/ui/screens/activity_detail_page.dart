@@ -87,36 +87,49 @@ class _ActivityDetailPageState extends State<ActivityDetailPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverHeader(context),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _sectionHeader(
-                  icon: Icons.speed_rounded,
-                  title: "Today's Stats",
-                  subtitle: 'Progress toward daily targets',
-                  color: const Color(0xFF5E5CE6),
-                ),
-                const SizedBox(height: 12),
-                _buildStatGrid(),
-
-                const SizedBox(height: 20),
-                _buildHourlyChart(),
-                const SizedBox(height: 20),
-                _buildWeeklyChart(),
-                const SizedBox(height: 20),
-                _buildHealthTips(),
-              ]),
-            ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _ringController.reset();
+          _barController.reset();
+          _ringController.forward();
+          _barController.forward();
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        color: const Color(0xFF5E5CE6),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
-        ],
+          slivers: [
+            _buildSliverHeader(context),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _sectionHeader(
+                    icon: Icons.speed_rounded,
+                    title: "Today's Stats",
+                    subtitle: 'Progress toward daily targets',
+                    color: const Color(0xFF5E5CE6),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildStatGrid(),
+
+                  const SizedBox(height: 20),
+                  _buildHourlyChart(),
+                  const SizedBox(height: 20),
+                  _buildWeeklyChart(),
+                  const SizedBox(height: 20),
+                  _buildHealthTips(),
+                ]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   // ── Sliver hero header ──────────────────────────────────────────────────────
 
@@ -393,12 +406,15 @@ class _ActivityDetailPageState extends State<ActivityDetailPage>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    b.label,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      b.label,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   RichText(

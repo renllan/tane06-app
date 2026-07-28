@@ -65,7 +65,7 @@ class TanE06ApiClient {
 
   /// POST /users/{userId}/bind — Bind a device to a user.
   Future<Map<String, dynamic>> bindDevice({
-    required int userId,
+    required dynamic userId,
     required String imei,
     String? name,
     String model = 'TanE06',
@@ -96,12 +96,16 @@ class TanE06ApiClient {
     }
 
     final body = _parseResponse(response);
-    return body['data'] as Map<String, dynamic>;
+    final data = body['data'];
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    return body;
   }
 
   /// POST /users/{userId}/unbind — Unbind a device from a user.
   Future<Map<String, dynamic>> unbindDevice({
-    required int userId,
+    required dynamic userId,
     required String imei,
   }) async {
     final response = await _http.post(
@@ -110,12 +114,16 @@ class TanE06ApiClient {
       body: jsonEncode({'imei': imei}),
     );
     final body = _parseResponse(response);
-    return body['data'] as Map<String, dynamic>;
+    final data = body['data'];
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    return body;
   }
 
   /// GET /users/{userId}/devices — List user's bound devices.
   Future<Map<String, dynamic>> listUserDevices({
-    required int userId,
+    required dynamic userId,
     int pageSize = 100,
     String? lastKey,
   }) async {
@@ -127,7 +135,13 @@ class TanE06ApiClient {
       headers: _jsonHeaders,
     );
     final body = _parseResponse(response);
-    return body['data'] as Map<String, dynamic>;
+    final data = body['data'];
+    if (data is List) {
+      return {'items': data};
+    } else if (data is Map<String, dynamic>) {
+      return data;
+    }
+    return {'items': []};
   }
 
   // -----------------------------------------------------------------------
