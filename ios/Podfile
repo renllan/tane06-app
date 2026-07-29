@@ -1,1 +1,1 @@
-nano ios/Podfile
+platform :ios, '15.5'
