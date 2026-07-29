@@ -3,7 +3,6 @@ import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
-import 'package:tane06_app/models/ui/screens/hrv_screen.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/models/ui/widgets/sparkline_painter.dart';
 
@@ -127,10 +126,6 @@ class _MetricCardState extends State<MetricCard>
                             imei: widget.imei,
                           ),
                         ),
-                      );
-                    } else if (widget.metric.label.toUpperCase() == 'HRV') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const HRVScreen()),
                       );
                     } else {
                       Navigator.of(context).push(

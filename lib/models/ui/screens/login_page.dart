@@ -195,10 +195,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         _buildLogo(),
                         const SizedBox(height: 40),
                         _buildLoginCard(),
-                        const SizedBox(height: 24),
-                        _buildDividerRow(),
-                        const SizedBox(height: 24),
-                        _buildSocialButtons(),
                         const SizedBox(height: 32),
                         _buildSignUpRow(),
                         const SizedBox(height: 40),
@@ -821,115 +817,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Divider row — "or continue with"
-  // ---------------------------------------------------------------------------
-  Widget _buildDividerRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 1,
-            color: Colors.white.withOpacity(0.06),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'or continue with',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textTertiary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: Colors.white.withOpacity(0.06),
-          ),
-        ),
-      ],
-    );
-  }
 
-  // ---------------------------------------------------------------------------
-  // Social login buttons
-  // ---------------------------------------------------------------------------
-  Widget _buildSocialButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildSocialButton(
-            icon: Icons.g_mobiledata_rounded,
-            label: 'Google',
-            iconSize: 28,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: _buildSocialButton(
-            icon: Icons.apple_rounded,
-            label: 'Apple',
-            iconSize: 22,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: _buildSocialButton(
-            icon: Icons.fingerprint_rounded,
-            label: 'Biometric',
-            iconSize: 22,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSocialButton({
-    required IconData icon,
-    required String label,
-    double iconSize = 22,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        splashColor: const Color(0xFF5E5CE6).withOpacity(0.08),
-        highlightColor: Colors.white.withOpacity(0.03),
-        onTap: () {
-          // TODO: Handle social login
-        },
-        child: Container(
-          height: 54,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.06),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: AppColors.textPrimary, size: iconSize),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // Sign-up prompt

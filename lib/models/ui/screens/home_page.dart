@@ -7,11 +7,11 @@ import 'package:tane06_app/models/ui/screens/device_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/add_device_page.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
-import 'package:tane06_app/models/ui/screens/hrv_screen.dart';
 import 'package:tane06_app/models/ui/widgets/metric_card.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
 import 'package:tane06_app/models/ui/widgets/temperature_widget.dart';
 import 'package:tane06_app/models/ui/widgets/quick_action_widget.dart';
+import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
 
 class HomePage extends StatefulWidget {
@@ -293,6 +293,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
       });
     }
+  }
+
+  void _openMultiDeviceMapPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WatchLocationMapScreen(
+          imei: _firstImei ?? '868705080309689',
+          devices: _devices,
+        ),
+      ),
+    );
   }
 
   Widget _buildDevicesSection() {
@@ -710,6 +721,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 children: [
                   _buildNavItem(Icons.home_rounded, 'Home', _currentIndex == 0, () => setState(() => _currentIndex = 0)),
                   _buildNavItem(Icons.analytics_rounded, 'Analytics', _currentIndex == 1, () => setState(() => _currentIndex = 1)),
+                  _buildNavItem(Icons.map_rounded, 'Map', false, _openMultiDeviceMapPage),
                   _buildNavItem(Icons.watch_rounded, 'Devices', _currentIndex == 2, () => setState(() => _currentIndex = 2)),
                   _buildNavItem(Icons.person_rounded, 'Profile', _currentIndex == 3, () => setState(() => _currentIndex = 3)),
                 ],

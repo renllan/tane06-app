@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tane06_app/theme/app_theme.dart';
+import 'package:tane06_app/models/device.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
+import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 
 enum QuickActionType {
   measureTemperature,
@@ -34,11 +36,13 @@ class QuickActionItem {
 
 class QuickActionWidget extends StatefulWidget {
   final String? imei;
+  final List<Device>? devices;
   final Function(String action, String message)? onActionResult;
 
   const QuickActionWidget({
     super.key,
     this.imei,
+    this.devices,
     this.onActionResult,
   });
 
@@ -120,6 +124,17 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
   Future<void> _handleAction(QuickActionItem item) async {
     final imei = widget.imei;
     if (imei == null || imei.isEmpty) {
+      if (item.type == QuickActionType.requestLocation && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => WatchLocationMapScreen(
+              imei: '868705080309689',
+              devices: widget.devices,
+            ),
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('目前為範例模式，觸發指令：${item.label}',
@@ -160,7 +175,17 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
           break;
         case QuickActionType.requestLocation:
           result = await _deviceRepository.requestLocation(imei: imei);
-          successMessage = '即時定位請求已發送！正在更新設備位置...';
+          successMessage = '即時定位請求已發送！正在開啟地圖...';
+          if (mounted) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => WatchLocationMapScreen(
+                  imei: imei,
+                  devices: widget.devices,
+                ),
+              ),
+            );
+          }
           break;
         case QuickActionType.findDevice:
           result = await _deviceRepository.sendCommand(

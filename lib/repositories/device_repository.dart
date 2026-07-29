@@ -153,7 +153,7 @@ class DeviceRepository {
       endTime: endTime,
       pageSize: pageSize,
     );
-    final rawItems = data['items'] ?? data['records'] ?? data['list'] ?? data['data'] ?? data['results'];
+    final rawItems = data['items'];
     final items = rawItems is List ? rawItems : [];
     return items
         .whereType<Map<String, dynamic>>()

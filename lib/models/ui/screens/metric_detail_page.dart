@@ -467,13 +467,15 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _buildInsightCard(
-                title: 'Suggested focus',
-                value: _getFocusTip(),
-                accentColor: metric.color,
-                isWide: true,
-              ),
+              if (metric.type != MetricType.heartRate) ...[
+                const SizedBox(height: 14),
+                _buildInsightCard(
+                  title: 'Suggested focus',
+                  value: _getFocusTip(),
+                  accentColor: metric.color,
+                  isWide: true,
+                ),
+              ],
 
               // Heart Rate Zone Analysis Section
               if (metric.type == MetricType.heartRate) ...[
