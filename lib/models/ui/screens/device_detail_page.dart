@@ -15,6 +15,8 @@ import 'package:tane06_app/models/ui/screens/temperature_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
 import 'package:tane06_app/models/ui/widgets/quick_action_widget.dart';
+import 'package:tane06_app/models/ui/dialogs/rename_device_dialog.dart';
+import 'package:tane06_app/models/ui/screens/wearer_profile_page.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
 
 class DeviceDetailPage extends StatefulWidget {
@@ -31,6 +33,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   final DeviceRepository _deviceRepository = DeviceRepository();
   final Map<String, bool> _measuringMap = {};
   final Map<String, String> _latestReadings = {};
+  late String _deviceName;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -228,6 +231,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   @override
   void initState() {
     super.initState();
+    _deviceName = widget.device.name;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -486,16 +490,47 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.device.name,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            height: 1.2,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _deviceName,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  height: 1.2,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () async {
+                                final imei = widget.device.imei ?? widget.device.id;
+                                final newName = await RenameDeviceDialog.show(
+                                  context,
+                                  imei: imei,
+                                  currentName: _deviceName,
+                                );
+                                if (newName != null && mounted) {
+                                  setState(() => _deviceName = newName);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.18),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.edit_rounded,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 5),
                         Wrap(

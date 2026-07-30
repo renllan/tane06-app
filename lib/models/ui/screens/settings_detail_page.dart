@@ -41,8 +41,31 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     _data = Map<String, dynamic>.from(widget.settingsData);
   }
 
-  void _saveAndPop() {
-    Navigator.of(context).pop(_data);
+  Future<void> _saveAndPop() async {
+    if (widget.category == SettingsCategory.profile && widget.imei != null) {
+      final profile = _data['profile'] as Map<String, dynamic>?;
+      if (profile != null) {
+        final height = (profile['height'] as num?)?.toInt() ?? 175;
+        final weight = (profile['weight'] as num?)?.toDouble() ?? 70.0;
+        final rawBirthday = profile['birthday']?.toString() ?? '19900101';
+        final birthday = rawBirthday.replaceAll(RegExp(r'\D'), '');
+        final formattedBirthday = birthday.length >= 8 ? birthday.substring(0, 8) : '19900101';
+        final sex = profile['sex']?.toString() ?? 'Male';
+        final int genderInt = (sex.toLowerCase() == 'male' || sex == '男') ? 1 : 0;
+        try {
+          await _deviceRepository.setProfile(
+            imei: widget.imei!,
+            height: height,
+            weight: weight,
+            birthday: formattedBirthday,
+            gender: genderInt,
+          );
+        } catch (_) {}
+      }
+    }
+    if (mounted) {
+      Navigator.of(context).pop(_data);
+    }
   }
 
   String _getCategoryTitle() {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:tane06_app/theme/app_theme.dart';
+import 'package:tane06_app/models/device_profile.dart';
 import 'package:tane06_app/models/ui/screens/settings_detail_page.dart';
+import 'package:tane06_app/models/ui/screens/wearer_profile_page.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
 import 'package:tane06_app/models/api_response.dart';
 
@@ -372,8 +374,13 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
 
   Widget _buildCategoryList() {
     final profileData = _settings?['profile'] as Map<String, dynamic>?;
-    final age = profileData?['age'] ?? 32;
-    final height = profileData?['height'] ?? 175;
+    int age = 32;
+    int height = 175;
+    if (profileData != null) {
+      final profile = DeviceProfile.fromJson(profileData);
+      age = profile.age;
+      height = profile.height;
+    }
 
     final categories = [
       {
@@ -476,6 +483,15 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           borderRadius: BorderRadius.circular(16),
           onTap: () async {
             if (_settings == null) return;
+            if (categoryKey == SettingsCategory.profile) {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => WearerProfilePage(imei: widget.imei),
+                ),
+              );
+              _loadSettings();
+              return;
+            }
             final updatedSettings = await Navigator.of(context).push<Map<String, dynamic>>(
               MaterialPageRoute(
                 builder: (_) => SettingsDetailPage(

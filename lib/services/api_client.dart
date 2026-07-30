@@ -48,12 +48,16 @@ class TanE06ApiClient {
   /// Throws [ApiException] if the response indicates failure.
   Map<String, dynamic> _parseResponse(http.Response response) {
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final success = body['success'] as bool? ?? false;
+    final isHttpOk = response.statusCode >= 200 && response.statusCode < 300;
+    final success = (body['success'] as bool?) ?? (body['result'] as bool?) ?? isHttpOk;
 
-    if (!success || response.statusCode >= 400) {
+    if (!success || !isHttpOk) {
       final error = body['error'] != null
           ? ApiError.fromJson(body['error'] as Map<String, dynamic>)
-          : ApiError(code: 'HttpError', message: 'Status ${response.statusCode}');
+          : ApiError(
+              code: body['code']?.toString() ?? 'Http${response.statusCode}',
+              message: body['message']?.toString() ?? 'Status ${response.statusCode}',
+            );
       throw ApiException(statusCode: response.statusCode, error: error);
     }
     return body;
@@ -344,6 +348,70 @@ class TanE06ApiClient {
       _uri('/devices/$imei/commands/$action'),
       headers: _jsonHeaders,
     );
+    return _parseResponse(response);
+  }
+
+  /// GET /devices/{imei}/profile — Read device wearer profile.
+  Future<Map<String, dynamic>> getProfile({required String imei}) async {
+    final response = await _http.get(
+      _uri('/devices/$imei/profile'),
+      headers: _jsonHeaders,
+    );
+    if (response.statusCode == 404) {
+      return {};
+    }
+    final body = _parseResponse(response);
+    if (body['data'] is Map<String, dynamic>) {
+      return body['data'] as Map<String, dynamic>;
+    }
+    return body;
+  }
+
+  /// PUT/POST /devices/{imei}/profile — Set device wearer profile.
+  Future<Map<String, dynamic>> setProfile({
+    required String imei,
+    required int height,
+    required String birthday,
+    required double weight,
+    required dynamic gender,
+  }) async {
+    final int genderInt = (gender is bool)
+        ? (gender ? 1 : 0)
+        : (int.tryParse(gender.toString()) ?? 1);
+
+    final payload = jsonEncode({
+      'height': height,
+      'birthday': birthday,
+      'weight': weight,
+      'gender': genderInt,
+    });
+
+    http.Response response = await _http.put(
+      _uri('/devices/$imei/profile'),
+      headers: _jsonHeaders,
+      body: payload,
+    );
+
+
+    return _parseResponse(response);
+  }
+
+  /// POST /devices/{imei}/rename — Rename device display name.
+  Future<Map<String, dynamic>> rename({
+    required String imei,
+    required String name,
+  }) async {
+    final payload = jsonEncode({
+      'name': name,
+    });
+
+    final response = await _http.post(
+      _uri('/devices/$imei/rename'),
+      headers: _jsonHeaders,
+      body: payload,
+    );
+
+
     return _parseResponse(response);
   }
 }

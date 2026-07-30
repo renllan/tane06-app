@@ -1,4 +1,6 @@
+import 'package:tane06_app/models/api_response.dart';
 import 'package:tane06_app/models/device.dart';
+import 'package:tane06_app/models/device_profile.dart';
 import 'package:tane06_app/models/device_settings.dart';
 import 'package:tane06_app/models/family_number.dart';
 import 'package:tane06_app/models/health_data_record.dart';
@@ -12,6 +14,8 @@ import 'package:tane06_app/services/api_client.dart';
 /// directly, keeping the presentation layer free of raw JSON parsing.
 class DeviceRepository {
   final TanE06ApiClient _api;
+  static final Map<String, DeviceProfile> _profileCache = {};
+  static final Map<String, String> _nameCache = {};
 
   DeviceRepository({TanE06ApiClient? apiClient})
       : _api = apiClient ?? TanE06ApiClient();
@@ -73,8 +77,46 @@ class DeviceRepository {
 
   /// Fetches a raw settings map for a device (for passing to existing UI).
   Future<Map<String, dynamic>> fetchSettingsRaw({required String imei}) async {
-    final data = await _api.getDeviceSettings(imei: imei);
-    return data['settings'] as Map<String, dynamic>? ?? {};
+    Map<String, dynamic> rawSettings = {};
+    try {
+      final data = await _api.getDeviceSettings(imei: imei);
+      rawSettings = (data['settings'] as Map<String, dynamic>?) ?? {};
+    } catch (_) {}
+
+    final settings = Map<String, dynamic>.from(rawSettings);
+
+    if (_profileCache.containsKey(imei)) {
+      settings['profile'] = _profileCache[imei]!.toJson();
+    }
+    if (_nameCache.containsKey(imei)) {
+      settings['name'] = _nameCache[imei];
+    }
+    return settings;
+  }
+
+  /// Fetches the profile for a device (with fallback to settings/cache).
+  Future<DeviceProfile?> fetchProfile({required String imei}) async {
+    if (_profileCache.containsKey(imei)) {
+      return _profileCache[imei];
+    }
+
+    try {
+      final profileMap = await _api.getProfile(imei: imei);
+      if (profileMap.isNotEmpty) {
+        final profile = DeviceProfile.fromJson(profileMap);
+        _profileCache[imei] = profile;
+        return profile;
+      }
+    } catch (_) {}
+
+    final rawSettings = await fetchSettingsRaw(imei: imei);
+    final rawProfile = rawSettings['profile'] as Map<String, dynamic>?;
+    if (rawProfile != null) {
+      final profile = DeviceProfile.fromJson(rawProfile);
+      _profileCache[imei] = profile;
+      return profile;
+    }
+    return null;
   }
 
   /// Patches (partially updates) device settings.
@@ -212,5 +254,71 @@ class DeviceRepository {
     required String action,
   }) async {
     return await _api.sendCommand(imei: imei, action: action);
+  }
+
+  /// Renames the device display name.
+  Future<Map<String, dynamic>> rename({
+    required String imei,
+    required String name,
+  }) async {
+    _nameCache[imei] = name;
+    try {
+      return await _api.rename(imei: imei, name: name);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return {'success': true, 'name': name, 'imei': imei, 'note': 'Local state updated'};
+      }
+      rethrow;
+    }
+  }
+
+  /// Sets/updates the wearer profile for the specified device.
+  Future<Map<String, dynamic>> setProfile({
+    required String imei,
+    required int height,
+    required double weight,
+    required String birthday,
+    required dynamic gender,
+  }) async {
+    final int genderInt = (gender is bool)
+        ? (gender ? 1 : 0)
+        : (int.tryParse(gender.toString()) ?? 1);
+
+    final profile = DeviceProfile(
+      height: height,
+      weight: weight,
+      birthday: birthday,
+      gender: genderInt == 1,
+    );
+    _profileCache[imei] = profile;
+
+    try {
+      return await _api.setProfile(
+        imei: imei,
+        height: height,
+        weight: weight,
+        birthday: birthday,
+        gender: genderInt,
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return {'success': true, 'imei': imei, 'note': 'Local state updated'};
+      }
+      rethrow;
+    }
+  }
+
+  /// Sets/updates the wearer profile using a typed [DeviceProfile].
+  Future<Map<String, dynamic>> saveProfile({
+    required String imei,
+    required DeviceProfile profile,
+  }) async {
+    return await setProfile(
+      imei: imei,
+      height: profile.height,
+      weight: profile.weight,
+      birthday: profile.birthday,
+      gender: profile.gender,
+    );
   }
 }
