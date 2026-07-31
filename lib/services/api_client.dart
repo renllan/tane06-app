@@ -317,7 +317,7 @@ class TanE06ApiClient {
     required String imei,
     int? startTime,
     int? endTime,
-    int pageSize = 100,
+    int pageSize = 1,
     String? lastKey,
   }) async {
     final params = <String, String>{'page_size': pageSize.toString()};

@@ -196,16 +196,168 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
     }
   }
 
+  DateTime _selectedDate = DateTime.now();
+
+  bool get _isTodaySelected {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  bool get _isYesterdaySelected {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return _selectedDate.year == yesterday.year &&
+        _selectedDate.month == yesterday.month &&
+        _selectedDate.day == yesterday.day;
+  }
+
+  String _formatDayLabel(DateTime dt) {
+    if (_isTodaySelected) return '今天 (Today)';
+    if (_isYesterdaySelected) return '昨天 (Yesterday)';
+    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    return weekdayNames[dt.weekday - 1];
+  }
+
+  String _formatDayDateStr(DateTime dt) {
+    return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildDateSelectorBar() {
+    final canGoNext = !_isTodaySelected;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: widget.metric.color.withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+              });
+              if (widget.imei != null && widget.imei!.isNotEmpty) _fetchMetricApiData();
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: widget.metric.color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 14,
+                color: widget.metric.color,
+              ),
+            ),
+            tooltip: '前一天 (Previous Day)',
+          ),
+          GestureDetector(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDate = picked;
+                });
+                if (widget.imei != null && widget.imei!.isNotEmpty) _fetchMetricApiData();
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_month_rounded, size: 16, color: widget.metric.color),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDayDateStr(_selectedDate),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDayLabel(_selectedDate),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.metric.color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _selectedDate = _selectedDate.add(const Duration(days: 1));
+                    });
+                    if (widget.imei != null && widget.imei!.isNotEmpty) _fetchMetricApiData();
+                  }
+                : null,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: canGoNext
+                    ? widget.metric.color.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: canGoNext ? widget.metric.color : Colors.grey,
+              ),
+            ),
+            tooltip: '後一天 (Next Day)',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final metric = widget.metric;
     final isPositive = metric.trendPercentage >= 0;
     final isGoodTrend = _isGoodTrend(metric.type, isPositive);
+
+    final dayStart = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 0, 0, 0);
+    final dayEnd = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
+    final activeRecords = _apiRecords
+        .where((r) => !r.dateTime.isBefore(dayStart) && !r.dateTime.isAfter(dayEnd))
+        .toList();
     
     String displayValue;
     if (metric.type == MetricType.heartRate) {
-      if (_apiRecords.isNotEmpty) {
-        final hrVals = _apiRecords.map(_extractNumericValue).where((v) => v > 0).toList();
+      if (activeRecords.isNotEmpty) {
+        final hrVals = activeRecords.map(_extractNumericValue).where((v) => v > 0).toList();
         if (hrVals.isNotEmpty) {
           final minHr = hrVals.reduce(math.min).toInt();
           final maxHr = hrVals.reduce(math.max).toInt();
@@ -219,15 +371,19 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
         displayValue = metric.value;
       }
     } else {
-      if (widget.imei != null && widget.imei!.isNotEmpty) {
-        displayValue = _latestApiValue ?? '--';
+      if (activeRecords.isNotEmpty) {
+        final val = _extractNumericValue(activeRecords.first);
+        displayValue = val > 0 ? (val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1)) : '--';
+      } else if (widget.imei != null && widget.imei!.isNotEmpty) {
+        displayValue = '--';
       } else {
         displayValue = _latestApiValue ?? metric.value;
       }
     }
 
-
-    final sparkData = _dynamicSparkline ?? metric.sparklineData;
+    final sparkData = activeRecords.isNotEmpty
+        ? activeRecords.map(_extractNumericValue).where((v) => v > 0).toList()
+        : (_dynamicSparkline ?? metric.sparklineData);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -279,6 +435,8 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildDateSelectorBar(),
+              const SizedBox(height: 16),
               // Hero Summary Card
               Container(
                 padding: const EdgeInsets.all(24),
@@ -409,8 +567,8 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
               const SizedBox(height: 12),
               Builder(
                 builder: (_) {
-                  final apiTimestamps = _apiRecords.isNotEmpty
-                      ? _apiRecords.map((r) {
+                  final apiTimestamps = activeRecords.isNotEmpty
+                      ? activeRecords.map((r) {
                           final dt = r.dateTime;
                           final hh = dt.hour.toString().padLeft(2, '0');
                           final mm = dt.minute.toString().padLeft(2, '0');
@@ -527,7 +685,6 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => BloodPressurePage(
-                            readings: generateMockBloodPressureReadings(),
                             imei: widget.imei,
                           ),
                         ),

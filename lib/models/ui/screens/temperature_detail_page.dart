@@ -234,6 +234,8 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    _buildDateSelectorBar(),
+                    const SizedBox(height: 20),
                     _buildStatusCard(),
                     const SizedBox(height: 20),
                     _buildZoneLegend(),
@@ -255,6 +257,152 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
     );
   }
 
+
+  DateTime _selectedDate = DateTime.now();
+
+  bool get _isTodaySelected {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  bool get _isYesterdaySelected {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return _selectedDate.year == yesterday.year &&
+        _selectedDate.month == yesterday.month &&
+        _selectedDate.day == yesterday.day;
+  }
+
+  String _formatDayLabel(DateTime dt) {
+    if (_isTodaySelected) return '今天 (Today)';
+    if (_isYesterdaySelected) return '昨天 (Yesterday)';
+    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    return weekdayNames[dt.weekday - 1];
+  }
+
+  String _formatDayDateStr(DateTime dt) {
+    return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildDateSelectorBar() {
+    final canGoNext = !_isTodaySelected;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFFF9F0A).withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+              });
+              if (widget.imei != null && widget.imei!.isNotEmpty) _fetchData();
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9F0A).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 14,
+                color: Color(0xFFFF9F0A),
+              ),
+            ),
+            tooltip: '前一天 (Previous Day)',
+          ),
+          GestureDetector(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDate = picked;
+                });
+                if (widget.imei != null && widget.imei!.isNotEmpty) _fetchData();
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFFFF9F0A)),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDayDateStr(_selectedDate),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDayLabel(_selectedDate),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFFF9F0A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _selectedDate = _selectedDate.add(const Duration(days: 1));
+                    });
+                    if (widget.imei != null && widget.imei!.isNotEmpty) _fetchData();
+                  }
+                : null,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: canGoNext
+                    ? const Color(0xFFFF9F0A).withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: canGoNext ? const Color(0xFFFF9F0A) : Colors.grey,
+              ),
+            ),
+            tooltip: '後一天 (Next Day)',
+          ),
+        ],
+      ),
+    );
+  }
 
   // ── Sliver app bar ──────────────────────────────────────────────────────────
 

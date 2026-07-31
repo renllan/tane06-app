@@ -14,13 +14,28 @@ class LocationHistoryResponse {
   bool get hasNextPage => nextKey != null;
 
   factory LocationHistoryResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as Map<String, dynamic>;
+    final data = (json['data'] is Map<String, dynamic>)
+        ? json['data'] as Map<String, dynamic>
+        : json;
+
+    final itemsList = (data['items'] is List) ? data['items'] as List : [];
+
+    final parsedItems = itemsList
+        .whereType<Map<String, dynamic>>()
+        .map((e) => DeviceLocation.fromJson(e))
+        .toList();
+
+    int parseNum(dynamic val, [int fallback = 1]) {
+      if (val == null) return fallback;
+      if (val is num) return val.toInt();
+      if (val is String) return int.tryParse(val) ?? fallback;
+      return fallback;
+    }
+
     return LocationHistoryResponse(
-      pageSize: data['page_size'] as int,
-      items: (data['items'] as List<dynamic>)
-          .map((e) => DeviceLocation.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      nextKey: data['next_key'] as String?,
+      pageSize: parseNum(data['page_size'], 1),
+      items: parsedItems,
+      nextKey: data['next_key']?.toString(),
     );
   }
 }

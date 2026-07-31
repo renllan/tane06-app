@@ -22,7 +22,7 @@ class TanE06App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TanE-06 Health',
+      title: 'TanE06 Care+',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.wellnessTheme,
       home: const LoginPage(),

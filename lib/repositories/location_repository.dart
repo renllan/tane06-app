@@ -22,7 +22,7 @@ class LocationRepository {
     String imei, {
     int? startTime,
     int? endTime,
-    int pageSize = 100,
+    int pageSize = 1,
     String? lastKey,
   }) {
     return _service.fetchLocationHistory(

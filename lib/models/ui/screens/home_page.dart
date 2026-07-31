@@ -6,6 +6,7 @@ import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/ui/screens/device_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/add_device_page.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
+import 'package:tane06_app/models/ui/screens/login_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/models/ui/widgets/metric_card.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
@@ -13,6 +14,7 @@ import 'package:tane06_app/models/ui/widgets/temperature_widget.dart';
 import 'package:tane06_app/models/ui/widgets/quick_action_widget.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
+import 'package:tane06_app/services/auth_token_store.dart';
 
 class HomePage extends StatefulWidget {
   final int? userId;
@@ -147,8 +149,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
-              if (_currentIndex == 1)
-                SliverToBoxAdapter(child: _buildAnalyticsSection())
+              if (_currentIndex == 3)
+                SliverToBoxAdapter(child: _buildProfileSection())
               else
                 SliverToBoxAdapter(child: _buildDevicesSection()),
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -160,114 +162,217 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAnalyticsSection() {
-    final bpMetric = const HealthMetric(
-      type: MetricType.bloodPressure,
-      label: 'Blood Pressure',
-      value: '120/78',
-      unit: 'mmHg',
-      icon: Icons.monitor_heart_rounded,
-      color: AppColors.bloodPressure,
-      glowColor: AppColors.bloodPressureGlow,
-      gradient: AppColors.bloodPressureGradient,
-      status: MetricStatus.normal,
-      trendPercentage: -2.5,
-      trendLabel: 'vs yesterday',
-      sparklineData: [124.0, 122.0, 119.0, 121.0, 120.0],
+
+
+  // -----------------------------------------------------------------------
+  // Profile tab
+  // -----------------------------------------------------------------------
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceLight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Color(0xFFFF453A), size: 22),
+            SizedBox(width: 8),
+            Text(
+              '登出帳號',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '確定要登出帳號嗎？登出後需重新登入才能使用所有功能。',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消',
+                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF453A),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('確認登出',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
 
-    final hrMetric = const HealthMetric(
-      type: MetricType.heartRate,
-      label: 'Heart Rate',
-      value: '72',
-      unit: 'bpm',
-      icon: Icons.favorite_rounded,
-      color: AppColors.heartRate,
-      glowColor: AppColors.heartRateGlow,
-      gradient: AppColors.heartRateGradient,
-      status: MetricStatus.normal,
-      trendPercentage: -1.2,
-      trendLabel: 'resting',
-      sparklineData: [78.0, 80.0, 76.0, 74.0, 72.0],
-    );
+    if (confirm != true || !mounted) return;
 
-    final hrvMetric = const HealthMetric(
-      type: MetricType.hrv,
-      label: 'HRV',
-      value: '49.4',
-      unit: 'ms',
-      icon: Icons.analytics_rounded,
-      color: AppColors.heartRate,
-      glowColor: AppColors.heartRateGlow,
-      gradient: AppColors.heartRateGradient,
-      status: MetricStatus.normal,
-      trendPercentage: 2.1,
-      trendLabel: 'recovery',
-      sparklineData: [45.0, 48.0, 47.5, 49.4, 50.1],
-    );
+    // Clear the auth token
+    AuthTokenStore.instance.clear();
 
-    final stepsMetric = const HealthMetric(
-      type: MetricType.steps,
-      label: 'Steps',
-      value: '6,543',
-      unit: 'steps',
-      icon: Icons.directions_walk_rounded,
-      color: AppColors.steps,
-      glowColor: AppColors.stepsGlow,
-      gradient: AppColors.stepsGradient,
-      status: MetricStatus.normal,
-      trendPercentage: 8.4,
-      trendLabel: 'today',
-      sparklineData: [4200.0, 5400.0, 6000.0, 6543.0],
+    // Navigate back to login, removing all routes
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (_) => false,
     );
+  }
+
+  Widget _buildProfileSection() {
+    final userId = widget.userId;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '健康分析與總覽',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+          // ── Account card ─────────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
             ),
-          ),
-          const SizedBox(height: 16),
-          // Featured Blood Pressure Card
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => BloodPressurePage(
-                    readings: generateMockBloodPressureReadings(),
-                    imei: _firstImei,
+            child: Row(
+              children: [
+                // Avatar
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF5E5CE6), Color(0xFF4B7BEC)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.person_rounded, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AuthTokenStore.instance.username ?? 'TanE-06 使用者',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        userId != null ? 'User ID: $userId' : '未登入',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-            child: MetricCard(metric: bpMetric, isLarge: true, imei: _firstImei),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          const SleepOverviewCard(),
-          const SizedBox(height: 16),
-          const TemperatureWidget(),
-          const SizedBox(height: 16),
-          const QuickActionWidget(),
-          const SizedBox(height: 16),
-          GridView.count(
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.4,
-            children: [
-              MetricCard(metric: hrMetric),
-              MetricCard(metric: hrvMetric),
-              MetricCard(metric: stepsMetric),
-            ],
+
+          const SizedBox(height: 20),
+
+          // ── Device summary ───────────────────────────────────────────
+          _profileInfoRow(
+            icon: Icons.watch_rounded,
+            label: '綁定設備數量',
+            value: '${_devices.length} 個設備',
+            color: AppColors.primary,
+          ),
+          const SizedBox(height: 12),
+          _profileInfoRow(
+            icon: Icons.devices_other_rounded,
+            label: '裝置型號',
+            value: 'TanE-06',
+            color: AppColors.primary,
+          ),
+
+          const SizedBox(height: 28),
+
+          // ── Logout button ─────────────────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _confirmLogout,
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              label: const Text(
+                '登出帳號',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF453A),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -299,7 +404,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WatchLocationMapScreen(
-          imei: _firstImei ?? '868705080309689',
+          imei: _firstImei ?? '868705080304723',
           devices: _devices,
         ),
       ),
@@ -432,6 +537,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  /// Converts an epoch-millisecond timestamp to a human-readable Chinese
+  /// relative-time string, e.g. "剛剛", "3 分鐘前", "2 小時前", "昨天", "5 天前".
+  /// Returns "尚無更新紀錄" when [epochMs] is null or zero.
+  String _formatRelativeTime(int? epochMs) {
+    if (epochMs == null || epochMs == 0) return '尚無更新紀錄';
+
+    // Convert seconds → ms if needed (10-digit vs 13-digit)
+    final ms = epochMs < 10000000000 ? epochMs * 1000 : epochMs;
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    final diff = DateTime.now().difference(dt);
+
+    if (diff.isNegative || diff.inSeconds < 60) return '剛剛';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分鐘前';
+    if (diff.inHours < 24) return '${diff.inHours} 小時前';
+    if (diff.inDays == 1) return '昨天';
+    if (diff.inDays < 30) return '${diff.inDays} 天前';
+    return '${(diff.inDays / 30).floor()} 個月前';
+  }
+
   Widget _buildDeviceCard(Device d) {
     // choose background color per status
     Color bgColor = AppColors.surfaceLight;
@@ -516,7 +640,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ]),
                       const SizedBox(height: 6),
                       Row(children: [
-                        const Text('在線 | 配戴中', style: TextStyle(color: AppColors.textSecondary)),
+                        // Online / offline indicator dot
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: d.isOnline
+                                ? const Color(0xFF30D158)
+                                : const Color(0xFF8E8E93),
+                            shape: BoxShape.circle,
+                            boxShadow: d.isOnline
+                                ? [BoxShadow(color: const Color(0xFF30D158).withOpacity(0.5), blurRadius: 6, spreadRadius: 1)]
+                                : null,
+                          ),
+                        ),
                         const SizedBox(width: 10),
                         Flexible(
                           child: GestureDetector(
@@ -525,7 +662,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => BloodPressurePage(
-                                      readings: generateMockBloodPressureReadings(),
                                       imei: d.imei ?? d.id,
                                     ),
                                   ),
@@ -577,7 +713,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               children: [
                 Expanded(
                   child: Text(
-                    '最後更新：2 分鐘前',
+                    '最後更新：${_formatRelativeTime(d.updatedAt)}',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -720,7 +856,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildNavItem(Icons.home_rounded, 'Home', _currentIndex == 0, () => setState(() => _currentIndex = 0)),
-                  _buildNavItem(Icons.analytics_rounded, 'Analytics', _currentIndex == 1, () => setState(() => _currentIndex = 1)),
                   _buildNavItem(Icons.map_rounded, 'Map', false, _openMultiDeviceMapPage),
                   _buildNavItem(Icons.watch_rounded, 'Devices', _currentIndex == 2, () => setState(() => _currentIndex = 2)),
                   _buildNavItem(Icons.person_rounded, 'Profile', _currentIndex == 3, () => setState(() => _currentIndex = 3)),

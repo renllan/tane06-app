@@ -42,7 +42,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
   List<Device> get _defaultDevices => [
         Device(
           id: '1',
-          imei: widget.imei.isNotEmpty ? widget.imei : '868705080309689',
+          imei: widget.imei.isNotEmpty ? widget.imei : '868705080304723',
           name: '父親的 TanE06',
           owner: '父親',
           batteryPercent: 20,
@@ -75,35 +75,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         ),
       ];
 
-  List<DeviceLocation> _getDefaultMockHistory(String imei, int index) {
-    // Default coordinates spread around Taipei for multi-device visualization
-    final baseLats = [25.033964, 25.047800, 25.041800, 25.052000, 25.028000];
-    final baseLngs = [121.564468, 121.517000, 121.550200, 121.534000, 121.543000];
 
-    final lat = baseLats[index % baseLats.length];
-    final lng = baseLngs[index % baseLngs.length];
-
-    return [
-      DeviceLocation(
-        deviceImei: imei,
-        latitude: lat,
-        longitude: lng,
-        timestamp: DateTime.now(),
-      ),
-      DeviceLocation(
-        deviceImei: imei,
-        latitude: lat + 0.0012,
-        longitude: lng - 0.0015,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 15)),
-      ),
-      DeviceLocation(
-        deviceImei: imei,
-        latitude: lat + 0.0025,
-        longitude: lng - 0.0030,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 30)),
-      ),
-    ];
-  }
 
   @override
   void initState() {
@@ -135,14 +107,22 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
       final dev = _devicesList[i];
       final devImei = dev.imei ?? dev.id;
       try {
-        final history = await _repo.getFullHistory(devImei);
+        final pageRes = await _repo.getHistoryPage(devImei, pageSize: 1);
         if (mounted) {
-          _deviceHistories[devImei] =
-              history.isNotEmpty ? history : _getDefaultMockHistory(devImei, i);
+          final items = pageRes.items;
+          if (items.isNotEmpty) {
+            final loc = items.first;
+            debugPrint('🌐 [MapScreen Fetched] Device "${dev.name}" ($devImei) -> Lat: ${loc.latitude}, Lng: ${loc.longitude}, Time: ${loc.timestamp}');
+            _deviceHistories[devImei] = items;
+          } else {
+            debugPrint('⚠️ [MapScreen Fetched] Device "${dev.name}" ($devImei) returned empty history.');
+            _deviceHistories.remove(devImei);
+          }
         }
       } catch (e) {
+        debugPrint('❌ [MapScreen Fetch Error] Device "${dev.name}" ($devImei): $e');
         if (mounted) {
-          _deviceHistories[devImei] = _getDefaultMockHistory(devImei, i);
+          _deviceHistories.remove(devImei);
         }
       }
     }
@@ -254,11 +234,17 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         });
       }
       await Future.delayed(const Duration(seconds: 2));
-      final history = await _repo.getFullHistory(devImei);
+      final pageRes = await _repo.getHistoryPage(devImei, pageSize: 1);
       if (mounted) {
+        final items = pageRes.items;
+        if (items.isNotEmpty) {
+          final loc = items.first;
+          debugPrint('🌐 [MapScreen Refresh] Device "${dev.name}" ($devImei) -> Lat: ${loc.latitude}, Lng: ${loc.longitude}, Time: ${loc.timestamp}');
+          _deviceHistories[devImei] = items;
+        } else {
+          _deviceHistories.remove(devImei);
+        }
         setState(() {
-          _deviceHistories[devImei] =
-              history.isNotEmpty ? history : _getDefaultMockHistory(devImei, 0);
           _statusMessage = '「${dev.name}」定位已更新！';
         });
       }
@@ -306,16 +292,101 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         orElse: () => _devicesList.first,
       );
 
-  List<DeviceLocation> get _selectedHistory =>
+  List<DeviceLocation>? get _selectedHistory =>
       _deviceHistories[_selectedImei] ??
-      _getDefaultMockHistory(_selectedImei, 0);
+      (_deviceHistories.isNotEmpty ? _deviceHistories.values.first : null);
 
   @override
   Widget build(BuildContext context) {
-    final selectedLatest = _selectedHistory.first;
+    if (_isLoading && _deviceHistories.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            '全設備即時定位地圖',
+            style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: AppColors.primary),
+              const SizedBox(height: 16),
+              Text(
+                '正在從 API 讀取手錶 GPS 最新座標...',
+                style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final activeHistory = _selectedHistory;
+
+    if (activeHistory == null || activeHistory.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            '全設備即時定位地圖',
+            style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_off_rounded, size: 64, color: AppColors.textTertiary),
+                const SizedBox(height: 16),
+                Text(
+                  '目前 API 尚無手錶即時 GPS 定位數據',
+                  style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '請點擊下方按鈕向手錶發送定位指令，等待手錶回應上傳座標。',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _isRequestingLocation ? null : _triggerBatchLocationRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.cell_tower_rounded, size: 18),
+                  label: const Text('發送即時定位指令', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final selectedLatest = activeHistory.first;
     final selectedLatLng = LatLng(selectedLatest.latitude, selectedLatest.longitude);
     final selectedTrail =
-        _selectedHistory.map((l) => LatLng(l.latitude, l.longitude)).toList();
+        activeHistory.map((l) => LatLng(l.latitude, l.longitude)).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -393,14 +464,18 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                   ),
                 ],
               ),
-              // Markers Layer for ALL Devices
+              // Markers Layer for Devices with Real Location Data
               MarkerLayer(
-                markers: _devicesList.map((dev) {
+                markers: _devicesList.where((d) {
+                  final k = d.imei ?? d.id;
+                  return _deviceHistories.containsKey(k) && _deviceHistories[k]!.isNotEmpty;
+                }).map((dev) {
                   final devKey = dev.imei ?? dev.id;
-                  final history = _deviceHistories[devKey] ??
-                      _getDefaultMockHistory(devKey, 0);
+                  final history = _deviceHistories[devKey]!;
                   final latestLoc = history.first;
                   final isSelected = devKey == _selectedImei;
+
+                  debugPrint('🗺️ [Map Display Marker] "${dev.name}" ($devKey) -> Displaying Lat: ${latestLoc.latitude}, Lng: ${latestLoc.longitude}');
 
                   return Marker(
                     point: LatLng(latestLoc.latitude, latestLoc.longitude),
@@ -469,9 +544,6 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Top Quick Action Row (Locate All & Fit View)
-                _buildMapActionRow(),
-                const SizedBox(height: 10),
                 // Horizontal Device Cards Selector
                 _buildHorizontalDeviceSelector(),
                 const SizedBox(height: 10),
@@ -590,68 +662,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
     );
   }
 
-  Widget _buildMapActionRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _isRequestingLocation ? null : _triggerBatchLocationRequest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.cell_tower_rounded, size: 18),
-              label: Text(
-                '群組即時定位 (Locate All)',
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            onPressed: _fitAllDevices,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary, width: 1.5),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.aspect_ratio_rounded, size: 16),
-            label: Text(
-              '全景視角',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildHorizontalDeviceSelector() {
     return SizedBox(
@@ -761,11 +772,12 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
 
   Widget _buildSelectedDeviceInfoCard(Device dev, LatLng latLng) {
     final devKey = dev.imei ?? dev.id;
-    final history = _deviceHistories[devKey] ?? _getDefaultMockHistory(devKey, 0);
-    final location = history.first;
+    final history = _deviceHistories[devKey];
+    final location = (history != null && history.isNotEmpty) ? history.first : null;
 
-    final formattedTime =
-        '${location.timestamp.hour.toString().padLeft(2, '0')}:${location.timestamp.minute.toString().padLeft(2, '0')}';
+    final formattedTime = location != null
+        ? '${location.timestamp.hour.toString().padLeft(2, '0')}:${location.timestamp.minute.toString().padLeft(2, '0')}'
+        : '--:--';
 
     return Container(
       padding: const EdgeInsets.all(14),

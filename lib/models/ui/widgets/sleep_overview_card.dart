@@ -115,6 +115,149 @@ class _SleepDetailPageState extends State<SleepDetailPage> {
     return map;
   }
 
+  DateTime _selectedDate = DateTime.now();
+
+  bool get _isTodaySelected {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  bool get _isYesterdaySelected {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return _selectedDate.year == yesterday.year &&
+        _selectedDate.month == yesterday.month &&
+        _selectedDate.day == yesterday.day;
+  }
+
+  String _formatDayLabel(DateTime dt) {
+    if (_isTodaySelected) return '今天 (Today)';
+    if (_isYesterdaySelected) return '昨天 (Yesterday)';
+    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    return weekdayNames[dt.weekday - 1];
+  }
+
+  String _formatDayDateStr(DateTime dt) {
+    return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildDateSelectorBar(Color color) {
+    final canGoNext = !_isTodaySelected;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+              });
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 14,
+                color: color,
+              ),
+            ),
+            tooltip: '前一天 (Previous Day)',
+          ),
+          GestureDetector(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDate = picked;
+                });
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_month_rounded, size: 16, color: color),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDayDateStr(_selectedDate),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDayLabel(_selectedDate),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _selectedDate = _selectedDate.add(const Duration(days: 1));
+                    });
+                  }
+                : null,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: canGoNext
+                    ? color.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: canGoNext ? color : Colors.grey,
+              ),
+            ),
+            tooltip: '後一天 (Next Day)',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final h = _totalMinutes ~/ 60;
@@ -196,6 +339,8 @@ class _SleepDetailPageState extends State<SleepDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildDateSelectorBar(AppColors.primary),
+            const SizedBox(height: 16),
             // ─────────────────────────────────────────────────────────────────
             // 1. HERO SLEEP SUMMARY CARD (Duration + Quality + Start/End)
             // ─────────────────────────────────────────────────────────────────

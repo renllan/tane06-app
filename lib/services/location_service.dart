@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:tane06_app/services/auth_token_store.dart';
 import '../models/location_history_response.dart';
@@ -25,14 +26,14 @@ class LocationService {
   /// Fetches one page of location history for a device.
   ///
   /// [startTime] / [endTime] are millisecond Unix timestamps.
-  /// [pageSize] defaults to 100, max 500 (enforced by the API).
+  /// [pageSize] defaults to 1, max 500 (enforced by the API).
   /// [lastKey] should be the `next_key` from a previous page to continue
   /// pagination.
   Future<LocationHistoryResponse> fetchLocationHistory({
     required String imei,
     int? startTime,
     int? endTime,
-    int pageSize = 100,
+    int pageSize = 1,
     String? lastKey,
   }) async {
     final queryParams = <String, String>{
@@ -66,7 +67,16 @@ class LocationService {
       throw LocationServiceException('API returned success=false: $json');
     }
 
-    return LocationHistoryResponse.fromJson(json);
+    final result = LocationHistoryResponse.fromJson(json);
+    if (result.items.isEmpty) {
+      debugPrint('📍 [LocationService API] IMEI: $imei -> Returned 0 items');
+    } else {
+      for (final item in result.items) {
+        debugPrint('📍 [LocationService API] IMEI: $imei -> Lat: ${item.latitude}, Lng: ${item.longitude}, Time: ${item.timestamp}');
+      }
+    }
+
+    return result;
   }
 
   /// Triggers a location request to the device (POST /devices/{imei}/locations/request).

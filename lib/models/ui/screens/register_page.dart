@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/services/auth_service.dart';
+import 'package:tane06_app/services/auth_token_store.dart';
 import 'package:tane06_app/models/api_response.dart';
 import 'package:tane06_app/models/device.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
@@ -110,6 +111,17 @@ class _RegisterPageState extends State<RegisterPage> with TickerProviderStateMix
       );
 
       final userId = _extractUserId(regResponse);
+
+      // Guarantee the entered name is stored even if the API response
+      // doesn't echo it back (AuthService._extractAndStoreToken may miss it).
+      final enteredName = _nameController.text.trim();
+      if (AuthTokenStore.instance.username == null || AuthTokenStore.instance.username!.isEmpty) {
+        final fallback = enteredName.isNotEmpty
+            ? enteredName
+            : _emailController.text.trim();
+        if (fallback.isNotEmpty) AuthTokenStore.instance.setUsername(fallback);
+      }
+
       List<Device> userDevices = [];
 
       if (userId != null) {

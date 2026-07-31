@@ -228,7 +228,7 @@ class DeviceRepository {
     required String imei,
     int? startTime,
     int? endTime,
-    int pageSize = 100,
+    int pageSize = 1,
   }) async {
     final data = await _api.getLocationHistory(
       imei: imei,

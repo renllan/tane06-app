@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
@@ -29,7 +30,7 @@ class BloodPressurePage extends StatefulWidget {
 
   const BloodPressurePage({
     super.key,
-    required this.readings,
+    this.readings = const [],
     this.imei,
   });
 
@@ -40,6 +41,7 @@ class BloodPressurePage extends StatefulWidget {
 class _BloodPressurePageState extends State<BloodPressurePage> {
   final DeviceRepository _deviceRepository = DeviceRepository();
   TimeFilter _selectedFilter = TimeFilter.day;
+  DateTime _selectedDay = DateTime.now();
   double _warningSystolicLimit = 135;
   double _warningDiastolicLimit = 85;
   final List<BloodPressureReading> _userCustomReadings = [];
@@ -55,17 +57,28 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   Future<void> _fetchHealthDataApi() async {
-    if (widget.imei == null || widget.imei!.isEmpty) return;
+    final imeiToUse = widget.imei;
+    if (imeiToUse == null || imeiToUse.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _apiReadings = [];
+          _isLoadingApi = false;
+        });
+      }
+      return;
+    }
     setState(() => _isLoadingApi = true);
     try {
       // 1. Primary query using official API code 'BP'
       List<HealthDataRecord> records = await _deviceRepository.fetchHealthData(
-        imei: widget.imei!,
+        imei: imeiToUse,
         type: 'BP',
       );
 
-      // Fallback queries if 'BP' returned empty
-      
+      // Fallback query without type parameter if 'BP' returned empty
+      if (records.isEmpty) {
+        records = await _deviceRepository.fetchHealthData(imei: imeiToUse);
+      }
 
       final parsed = records
           .map((r) => _recordToReading(r))
@@ -76,16 +89,17 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
       if (mounted) {
         setState(() {
-          if (parsed.isNotEmpty) {
-            _apiReadings = parsed;
-          }
+          _apiReadings = parsed;
           _isLoadingApi = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching health data in BloodPressurePage: $e');
       if (mounted) {
-        setState(() => _isLoadingApi = false);
+        setState(() {
+          _apiReadings ??= [];
+          _isLoadingApi = false;
+        });
       }
     }
   }
@@ -246,8 +260,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           color: Color(0xFF007AFF),
         ),
       );
-    } else if (isApi) {
-      labelText = '來自 API 的數據';
+    } else if (_apiReadings != null && _apiReadings!.isNotEmpty) {
+      labelText = '來自 API 的數據 (${_apiReadings!.length} 筆)';
       badgeColor = const Color(0xFF30D158);
       iconWidget = Icon(
         Icons.cloud_done_rounded,
@@ -255,10 +269,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         color: badgeColor,
       );
     } else {
-      labelText = '模擬數據 (Mock)';
-      badgeColor = const Color(0xFFFF9F0A);
+      labelText = 'API 尚無紀錄';
+      badgeColor = const Color(0xFF8E8E93);
       iconWidget = Icon(
-        Icons.science_rounded,
+        Icons.cloud_off_rounded,
         size: 11,
         color: badgeColor,
       );
@@ -293,39 +307,202 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   List<BloodPressureReading> get _currentReadings {
+    final apiData = _apiReadings ?? [];
     if (_userCustomReadings.isNotEmpty) {
-      return [...(_apiReadings ?? []), ..._userCustomReadings];
+      return [...apiData, ..._userCustomReadings];
     }
-    if (_apiReadings != null) {
-      return _apiReadings!;
-    }
-    return widget.readings;
+    return apiData;
   }
 
+  bool get _isTodaySelected {
+    final now = DateTime.now();
+    return _selectedDay.year == now.year &&
+        _selectedDay.month == now.month &&
+        _selectedDay.day == now.day;
+  }
+
+  bool get _isYesterdaySelected {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return _selectedDay.year == yesterday.year &&
+        _selectedDay.month == yesterday.month &&
+        _selectedDay.day == yesterday.day;
+  }
+
+  String _formatDayLabel(DateTime dt) {
+    if (_isTodaySelected) return '今天 (Today)';
+    if (_isYesterdaySelected) return '昨天 (Yesterday)';
+    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    return weekdayNames[dt.weekday - 1];
+  }
+
+  String _formatDayDateStr(DateTime dt) {
+    return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Returns readings filtered to the active time window and selected date:
+  /// - Day   → 00:00 to 23:59 of _selectedDay
+  /// - Week  → past 7 days up to end of _selectedDay
+  /// - Month → past 30 days up to end of _selectedDay
+  List<BloodPressureReading> get _filteredReadings {
+    final DateTime startCutoff;
+    final DateTime endCutoff;
+
+    switch (_selectedFilter) {
+      case TimeFilter.day:
+        startCutoff = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, 0, 0, 0);
+        endCutoff = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, 23, 59, 59);
+        break;
+      case TimeFilter.week:
+        endCutoff = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, 23, 59, 59);
+        startCutoff = endCutoff.subtract(const Duration(days: 7));
+        break;
+      case TimeFilter.month:
+        endCutoff = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, 23, 59, 59);
+        startCutoff = endCutoff.subtract(const Duration(days: 30));
+        break;
+    }
+
+    return _currentReadings
+        .where((r) => !r.time.isBefore(startCutoff) && !r.time.isAfter(endCutoff))
+        .toList();
+  }
+
+  Widget _buildDaySelectorBar() {
+    final canGoNext = !_isTodaySelected;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bloodPressure.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedDay = _selectedDay.subtract(const Duration(days: 1));
+              });
+              _fetchHealthDataApi();
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.bloodPressure.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 14,
+                color: AppColors.bloodPressure,
+              ),
+            ),
+            tooltip: '前一天 (Previous Day)',
+          ),
+
+          GestureDetector(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDay,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDay = picked;
+                });
+                _fetchHealthDataApi();
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.bloodPressure),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDayDateStr(_selectedDay),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDayLabel(_selectedDay),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.bloodPressure,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          IconButton(
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _selectedDay = _selectedDay.add(const Duration(days: 1));
+                    });
+                    _fetchHealthDataApi();
+                  }
+                : null,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: canGoNext
+                    ? AppColors.bloodPressure.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: canGoNext ? AppColors.bloodPressure : Colors.grey,
+              ),
+            ),
+            tooltip: '後一天 (Next Day)',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Most recent reading for the active date / filter period.
   BloodPressureReading? get _lastReading =>
-      _currentReadings.isNotEmpty ? _currentReadings.last : null;
+      _filteredReadings.isNotEmpty ? _filteredReadings.last : null;
 
-  double get _maxSystolic => _currentReadings.isEmpty
+  double get _maxSystolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.systolic).reduce((a, b) => a > b ? a : b);
-  double get _minSystolic => _currentReadings.isEmpty
+      : _filteredReadings.map((r) => r.systolic).reduce((a, b) => a > b ? a : b);
+  double get _minSystolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.systolic).reduce((a, b) => a < b ? a : b);
-  double get _avgSystolic => _currentReadings.isEmpty
+      : _filteredReadings.map((r) => r.systolic).reduce((a, b) => a < b ? a : b);
+  double get _avgSystolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.systolic).reduce((a, b) => a + b) /
-          _currentReadings.length;
+      : _filteredReadings.map((r) => r.systolic).reduce((a, b) => a + b) /
+          _filteredReadings.length;
 
-  double get _maxDiastolic => _currentReadings.isEmpty
+  double get _maxDiastolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.diastolic).reduce((a, b) => a > b ? a : b);
-  double get _minDiastolic => _currentReadings.isEmpty
+      : _filteredReadings.map((r) => r.diastolic).reduce((a, b) => a > b ? a : b);
+  double get _minDiastolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.diastolic).reduce((a, b) => a < b ? a : b);
-  double get _avgDiastolic => _currentReadings.isEmpty
+      : _filteredReadings.map((r) => r.diastolic).reduce((a, b) => a < b ? a : b);
+  double get _avgDiastolic => _filteredReadings.isEmpty
       ? 0
-      : _currentReadings.map((r) => r.diastolic).reduce((a, b) => a + b) /
-          _currentReadings.length;
+      : _filteredReadings.map((r) => r.diastolic).reduce((a, b) => a + b) /
+          _filteredReadings.length;
 
 
   String get _statsSectionTitle {
@@ -722,7 +899,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 _buildPeriodSelector(),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+            _buildDaySelectorBar(),
+            const SizedBox(height: 14),
             _buildChartCard(),
             const SizedBox(height: 24),
             Text(
@@ -1166,8 +1345,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: const Color(0xFFFF9F0A), width: 1),
                   ),
-                  child: const Text(
-                    '今日尚無紀錄',
+                  child: Text(
+                    '${_formatDayDateStr(_selectedDay)} 尚無紀錄',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1220,7 +1399,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
 
     // Blood Pressure Category Percentage Donut Circle calculation
-    final readings = _currentReadings;
+    // Use filtered readings so the donut reflects the active time period.
+    final readings = _filteredReadings;
     int normalCount = 0;
     int elevatedCount = 0;
     int stage1Count = 0;
@@ -1465,8 +1645,59 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   // ---------------------------------------------------------------------
   // Chart
   // ---------------------------------------------------------------------
+  /// Returns the appropriate "no data" label for the active filter.
+  String get _emptyChartLabel {
+    final dateStr = _formatDayDateStr(_selectedDay);
+    switch (_selectedFilter) {
+      case TimeFilter.day:
+        return '$dateStr 尚無血壓趨勢數據';
+      case TimeFilter.week:
+        return '$dateStr 前 7 天尚無血壓數據';
+      case TimeFilter.month:
+        return '$dateStr 前 30 天尚無血壓數據';
+    }
+  }
+
+  /// For Week / Month views: collapse all readings for the same calendar day
+  /// into a single averaged [BloodPressureReading] so the chart shows one
+  /// clean point per day instead of every individual measurement.
+  /// The representative [time] is set to noon of that day so that
+  /// [_getBottomTitleText] can still derive the correct label.
+  List<BloodPressureReading> _aggregateByDay(
+      List<BloodPressureReading> readings) {
+    if (readings.isEmpty) return [];
+
+    final Map<DateTime, List<BloodPressureReading>> groups = {};
+    for (final r in readings) {
+      final date = DateTime(r.time.year, r.time.month, r.time.day);
+      groups.putIfAbsent(date, () => []).add(r);
+    }
+
+    final result = groups.entries.map((entry) {
+      final date = entry.key;
+      final list = entry.value;
+      final avgSys =
+          list.map((r) => r.systolic).reduce((a, b) => a + b) / list.length;
+      final avgDia =
+          list.map((r) => r.diastolic).reduce((a, b) => a + b) / list.length;
+      return BloodPressureReading(
+        // Use noon as a stable representative timestamp for label formatting.
+        time: date.add(const Duration(hours: 12)),
+        systolic: avgSys.roundToDouble(),
+        diastolic: avgDia.roundToDouble(),
+      );
+    }).toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
+
+    return result;
+  }
+
   Widget _buildChartCard() {
-    final readings = _currentReadings;
+    // Day  → individual readings plotted by time-of-day.
+    // Week → one averaged point per calendar day (up to 7 points).
+    // Month→ one averaged point per calendar day (up to 30 points).
+    final readings = List<BloodPressureReading>.from(_filteredReadings)
+      ..sort((a, b) => a.time.compareTo(b.time));
     if (readings.isEmpty) {
       return Container(
         width: double.infinity,
@@ -1476,15 +1707,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.show_chart_rounded, size: 36, color: AppColors.textTertiary),
-              SizedBox(height: 8),
+              const Icon(Icons.show_chart_rounded, size: 36, color: AppColors.textTertiary),
+              const SizedBox(height: 8),
               Text(
-                '今日尚無血壓趨勢數據',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                _emptyChartLabel,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -1600,7 +1831,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     isCurved: true,
                     barWidth: 3,
                     color: BloodPressurePage.systolicColor,
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 4,
+                        color: BloodPressurePage.systolicColor,
+                        strokeWidth: 2,
+                        strokeColor: Colors.white,
+                      ),
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(
@@ -1618,7 +1857,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     isCurved: true,
                     barWidth: 3,
                     color: BloodPressurePage.diastolicColor,
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 4,
+                        color: BloodPressurePage.diastolicColor,
+                        strokeWidth: 2,
+                        strokeColor: Colors.white,
+                      ),
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
                       gradient: LinearGradient(

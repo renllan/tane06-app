@@ -122,7 +122,6 @@ class _MetricCardState extends State<MetricCard>
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => BloodPressurePage(
-                            readings: generateMockBloodPressureReadings(),
                             imei: widget.imei,
                           ),
                         ),

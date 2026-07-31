@@ -107,28 +107,38 @@ class AuthService {
   }
 
   /// Looks for a token in common response field names and persists it.
+  /// Also extracts and stores the user's display name or email.
   void _extractAndStoreToken(Map<String, dynamic> body) {
-    // Check top-level fields first, then inside 'data' map.
-    final candidates = <String>['token', 'access_token', 'accessToken', 'jwt'];
+    // ── Token extraction ─────────────────────────────────────────────────
+    final tokenCandidates = <String>['token', 'access_token', 'accessToken', 'jwt'];
+    final data = body['data'] is Map<String, dynamic>
+        ? body['data'] as Map<String, dynamic>
+        : null;
 
-    for (final key in candidates) {
-      final val = body[key];
+    for (final key in tokenCandidates) {
+      final val = body[key] ?? data?[key];
       if (val is String && val.isNotEmpty) {
         AuthTokenStore.instance.setToken(val);
-        return;
+        break;
       }
     }
 
-    // Also check inside body['data']
-    if (body['data'] is Map<String, dynamic>) {
-      final data = body['data'] as Map<String, dynamic>;
-      for (final key in candidates) {
-        final val = data[key];
-        if (val is String && val.isNotEmpty) {
-          AuthTokenStore.instance.setToken(val);
-          return;
-        }
-      }
+    // ── Username / email extraction ───────────────────────────────────────
+    // Priority: name > username > email, checked at top level then in data.
+    String? resolveUsername(Map<String, dynamic> m) {
+      final user = m['user'] is Map<String, dynamic>
+          ? m['user'] as Map<String, dynamic>
+          : null;
+      return (m['name'] ?? m['username'] ?? user?['name'] ?? user?['username'] ??
+              m['email'] ?? user?['email'])
+          ?.toString();
+    }
+
+    final username = resolveUsername(body) ??
+        (data != null ? resolveUsername(data) : null);
+
+    if (username != null && username.isNotEmpty) {
+      AuthTokenStore.instance.setUsername(username);
     }
   }
 }

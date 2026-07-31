@@ -9,7 +9,7 @@ import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
-import 'package:tane06_app/models/ui/screens/activity_detail_page.dart';
+
 import 'package:tane06_app/models/ui/screens/device_settings_page.dart';
 import 'package:tane06_app/models/ui/screens/temperature_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
@@ -317,15 +317,11 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         _buildSectionLabel('Vital Signs (${_formatDateShort(_selectedDate)})'),
                         const SizedBox(height: 14),
                         _buildVitalsGrid(),
-                        const SizedBox(height: 14),
-                        SleepOverviewCard(
-                          imei: widget.device.imei,
-                        ),
-                        const SizedBox(height: 24),
-                        _buildSectionLabel(_isToday ? 'Activity Today' : 'Activity on ${_formatDateShort(_selectedDate)}'),
-                        const SizedBox(height: 14),
-                        _buildActivityRow(),
-                        const SizedBox(height: 24),
+                        // SleepOverviewCard(
+                        //   imei: widget.device.imei,
+                        // ),
+                        // const SizedBox(height: 24),
+
                         QuickActionWidget(imei: widget.device.imei),
                         const SizedBox(height: 24),
                         _buildLocationMapPreviewCard(),
@@ -1005,7 +1001,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => BloodPressurePage(
-              readings: generateMockBloodPressureReadings(),
               imei: widget.device.imei,
             ),
           ),
@@ -1119,251 +1114,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       ),
     );
   }
-
-  Widget _buildActivityRow() {
-    final double stepsToday = _recordedSteps.toDouble();
-    const double stepsGoal = 10000;
-    final double goalPct = (stepsToday / stepsGoal).clamp(0.0, 1.0);
-
-    final formattedStepsStr =
-        _recordedSteps.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},");
-
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ActivityDetailPage(imei: widget.device.imei),
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Top row: ring + headline stats ──
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Goal ring
-                SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: CustomPaint(
-                    painter: _RingPainter(
-                      progress: goalPct,
-                      color: AppColors.steps,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '${(goalPct * 100).toStringAsFixed(0)}%',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.steps,
-                            ),
-                          ),
-                          Text(
-                            'goal',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 9,
-                              color: AppColors.textTertiary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                // Steps headline
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        formattedStepsStr,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                          height: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _isToday ? 'steps today' : 'steps recorded on ${_formatDateShort(_selectedDate)}',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Progress bar
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: goalPct,
-                          minHeight: 6,
-                          backgroundColor: AppColors.steps.withOpacity(0.12),
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.steps),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        stepsToday >= stepsGoal
-                            ? 'Goal achieved for this day!'
-                            : '${(stepsGoal - stepsToday).toStringAsFixed(0)} steps to daily goal',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 10,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFF0F0F0)),
-            const SizedBox(height: 14),
-            // ── Stat grid ──
-            Row(
-              children: [
-                Expanded(
-                  child: _activityStatCard(
-                    icon: Icons.local_fire_department_rounded,
-                    value: '$_recordedCalories',
-                    unit: 'kcal',
-                    label: 'Calories',
-                    color: const Color(0xFFFF6B35),
-                    bgColor: const Color(0xFFFFF3EE),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _activityStatCard(
-                    icon: Icons.route_rounded,
-                    value: '$_recordedDistance',
-                    unit: 'km',
-                    label: 'Distance',
-                    color: AppColors.bloodPressure,
-                    bgColor: const Color(0xFFF0F2FF),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _activityStatCard(
-                    icon: Icons.timer_rounded,
-                    value: '$_recordedActiveMin',
-                    unit: 'min',
-                    label: 'Active',
-                    color: AppColors.primary,
-                    bgColor: const Color(0xFFEDF6F3),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _activityStatCard({
-    required IconData icon,
-    required String value,
-    required String unit,
-    required String label,
-    required Color color,
-    required Color bgColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: value,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                      height: 1.1,
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' $unit',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 10,
-              color: AppColors.textTertiary,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _activityStat(IconData icon, String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 13),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-
 
   // ── Quick Actions ──────────────────────────────────────────────────────────
 
@@ -1479,7 +1229,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => BloodPressurePage(
-                  readings: generateMockBloodPressureReadings(),
                   imei: widget.device.imei,
                 ),
               ),
@@ -1746,7 +1495,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   }
 
   Widget _buildLocationMapPreviewCard() {
-    final imeiToUse = widget.device.imei ?? '868705080309689';
+    final imeiToUse = widget.device.imei ?? '868705080304723';
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1807,7 +1556,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                             ),
                           ),
                           Text(
-                            'Location Tracking (FlutterMap)',
+                            '點擊開啟地圖並查看最新 GPS 定位',
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
                               color: AppColors.textSecondary,
@@ -1851,7 +1600,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                     child: IgnorePointer(
                       child: FlutterMap(
                         options: const MapOptions(
-                          initialCenter: LatLng(25.033964, 121.564468),
+                          initialCenter: LatLng(24.7757895, 121.0169383),
                           initialZoom: 15.5,
                         ),
                         children: [
@@ -1863,7 +1612,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                           MarkerLayer(
                             markers: [
                               Marker(
-                                point: const LatLng(25.033964, 121.564468),
+                                point: const LatLng(24.7757895, 121.0169383),
                                 width: 36,
                                 height: 36,
                                 child: Container(
