@@ -147,7 +147,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('測量指令已發送，5 秒後刷新...', style: GoogleFonts.dmSans()),
+          content: Text('Measurement command sent. Refreshing in 5s...', style: GoogleFonts.dmSans()),
           backgroundColor: const Color(0xFFFF9F0A),
         ));
       }
@@ -156,7 +156,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('發送失敗: $e', style: GoogleFonts.dmSans()),
+          content: Text('Request failed: $e', style: GoogleFonts.dmSans()),
           backgroundColor: Colors.redAccent,
         ));
       }
@@ -275,9 +275,9 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
   }
 
   String _formatDayLabel(DateTime dt) {
-    if (_isTodaySelected) return '今天 (Today)';
-    if (_isYesterdaySelected) return '昨天 (Yesterday)';
-    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isTodaySelected) return 'Today';
+    if (_isYesterdaySelected) return 'Yesterday';
+    const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return weekdayNames[dt.weekday - 1];
   }
 
@@ -327,7 +327,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                 color: Color(0xFFFF9F0A),
               ),
             ),
-            tooltip: '前一天 (Previous Day)',
+            tooltip: 'Previous Day',
           ),
           GestureDetector(
             onTap: () async {
@@ -397,7 +397,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
                 color: canGoNext ? const Color(0xFFFF9F0A) : Colors.grey,
               ),
             ),
-            tooltip: '後一天 (Next Day)',
+            tooltip: 'Next Day',
           ),
         ],
       ),
@@ -792,7 +792,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
               const Icon(Icons.show_chart_rounded, size: 36, color: AppColors.textTertiary),
               const SizedBox(height: 8),
               Text(
-                '今日尚無體溫趨勢紀錄',
+                'No temperature history for this day',
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -946,7 +946,7 @@ class _TemperatureDetailPageState extends State<TemperatureDetailPage>
               )
             : const Icon(Icons.device_thermostat_rounded),
         label: Text(
-          _isMeasuring ? '發送量測指令中...' : '立即量測體溫 (Live)',
+          _isMeasuring ? 'Sending command...' : 'Measure Temperature (Live)',
           style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),

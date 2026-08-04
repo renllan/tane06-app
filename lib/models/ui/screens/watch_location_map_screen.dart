@@ -43,34 +43,34 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         Device(
           id: '1',
           imei: widget.imei.isNotEmpty ? widget.imei : '868705080304723',
-          name: '父親的 TanE06',
-          owner: '父親',
+          name: "Father's TanE06",
+          owner: 'Father',
           batteryPercent: 20,
           heartRate: 88,
           spo2: 95,
-          statusLabel: '血壓偏高',
+          statusLabel: 'High BP',
           isOnline: true,
         ),
         Device(
           id: '2',
           imei: '868705080309690',
-          name: '母親的 TanE06',
-          owner: '母親',
+          name: "Mother's TanE06",
+          owner: 'Mother',
           batteryPercent: 15,
           heartRate: 76,
           spo2: 97,
-          statusLabel: '低電量',
+          statusLabel: 'Low Battery',
           isOnline: true,
         ),
         Device(
           id: '3',
           imei: '868705080309691',
-          name: '我的 TanE06',
-          owner: '我',
+          name: "My TanE06",
+          owner: 'Me',
           batteryPercent: 82,
           heartRate: 72,
           spo2: 98,
-          statusLabel: '狀態良好',
+          statusLabel: 'Normal',
           isOnline: true,
         ),
       ];
@@ -167,7 +167,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
     if (_isRequestingLocation) return;
     setState(() {
       _isRequestingLocation = true;
-      _statusMessage = '已發送群組即時定位指令 (POST)，等待手錶回應...';
+      _statusMessage = 'Location command sent to all devices. Waiting for response...';
     });
 
     try {
@@ -180,7 +180,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
 
       if (mounted) {
         setState(() {
-          _statusMessage = '指令下發成功！正在讀取 GET 全設備定位歷史...';
+          _statusMessage = 'Command sent! Fetching location history...';
         });
       }
 
@@ -189,13 +189,13 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
 
       if (mounted) {
         setState(() {
-          _statusMessage = '全設備即時定位資料已更新！';
+          _statusMessage = 'Location updated for all devices!';
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _statusMessage = '群組定位請求完成';
+          _statusMessage = 'Batch location request complete';
         });
       }
     } finally {
@@ -206,7 +206,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _statusMessage ?? '群組即時定位完成',
+              _statusMessage ?? 'Location update complete',
               style: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
             ),
             backgroundColor: AppColors.primary,
@@ -223,14 +223,14 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
     if (_isRequestingLocation) return;
     setState(() {
       _isRequestingLocation = true;
-      _statusMessage = '正在為「${dev.name}」下發即時定位指令...';
+      _statusMessage = 'Requesting location for "${dev.name}"...';
     });
 
     try {
       await _repo.requestLocation(devImei);
       if (mounted) {
         setState(() {
-          _statusMessage = '指令已下發，正在更新歷史紀錄...';
+          _statusMessage = 'Command sent, updating history...';
         });
       }
       await Future.delayed(const Duration(seconds: 2));
@@ -245,13 +245,13 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
           _deviceHistories.remove(devImei);
         }
         setState(() {
-          _statusMessage = '「${dev.name}」定位已更新！';
+          _statusMessage = 'Location updated for "${dev.name}"!';
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _statusMessage = '「${dev.name}」定位請求發送';
+          _statusMessage = 'Location request sent for "${dev.name}"';
         });
       }
     } finally {
@@ -262,7 +262,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _statusMessage ?? '單一設備定位完成',
+              _statusMessage ?? 'Device location complete',
               style: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
             ),
             backgroundColor: AppColors.primary,
@@ -303,7 +303,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text(
-            '全設備即時定位地圖',
+            'Live GPS Tracking Map',
             style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           backgroundColor: AppColors.primary,
@@ -320,7 +320,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
               const CircularProgressIndicator(color: AppColors.primary),
               const SizedBox(height: 16),
               Text(
-                '正在從 API 讀取手錶 GPS 最新座標...',
+                'Fetching GPS coordinates from API...',
                 style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
               ),
             ],
@@ -336,7 +336,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text(
-            '全設備即時定位地圖',
+            'Live GPS Tracking Map',
             style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           backgroundColor: AppColors.primary,
@@ -355,12 +355,12 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                 const Icon(Icons.location_off_rounded, size: 64, color: AppColors.textTertiary),
                 const SizedBox(height: 16),
                 Text(
-                  '目前 API 尚無手錶即時 GPS 定位數據',
+                  'No GPS data available yet',
                   style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '請點擊下方按鈕向手錶發送定位指令，等待手錶回應上傳座標。',
+                  'Tap below to send a location request command to your device.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.textSecondary),
                 ),
@@ -374,7 +374,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.cell_tower_rounded, size: 18),
-                  label: const Text('發送即時定位指令', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text('Request Location', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -395,7 +395,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '全設備即時定位地圖',
+              'Live GPS Tracking Map',
               style: GoogleFonts.dmSans(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -403,7 +403,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
               ),
             ),
             Text(
-              '${_devicesList.length} 個綁定手錶 • 多人即時追蹤',
+              '${_devicesList.length} Devices • Multi-Device Tracking',
               style: GoogleFonts.dmSans(
                 fontSize: 12,
                 color: Colors.white70,
@@ -419,12 +419,12 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: '全景視角 (Fit All Devices)',
+            tooltip: 'Fit All Devices',
             icon: const Icon(Icons.zoom_out_map_rounded, color: Colors.white),
             onPressed: _fitAllDevices,
           ),
           IconButton(
-            tooltip: '重新整理 (Refresh)',
+            tooltip: 'Refresh',
             icon: _isLoading
                 ? const SizedBox(
                     width: 20,
@@ -523,7 +523,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _statusMessage ?? '多設備定位資料載入中...',
+                        _statusMessage ?? 'Loading location data...',
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -559,9 +559,9 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
 
   Widget _buildDeviceMapMarker(Device dev, bool isSelected) {
     Color badgeColor = const Color(0xFF2E7D32);
-    if (dev.statusLabel.contains('偏高') || dev.statusLabel.contains('異常')) {
+    if (dev.statusLabel.contains('High') || dev.statusLabel.contains('Abnormal')) {
       badgeColor = const Color(0xFFFF3B30);
-    } else if (dev.statusLabel.contains('低電量')) {
+    } else if (dev.statusLabel.contains('Low')) {
       badgeColor = const Color(0xFFFF9500);
     }
 
@@ -677,10 +677,10 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
 
           Color badgeBg = const Color(0xFFE8F5E9);
           Color badgeText = const Color(0xFF2E7D32);
-          if (dev.statusLabel.contains('偏高') || dev.statusLabel.contains('異常')) {
+          if (dev.statusLabel.contains('High') || dev.statusLabel.contains('Abnormal')) {
             badgeBg = const Color(0xFFFFEBEE);
             badgeText = const Color(0xFFB00020);
-          } else if (dev.statusLabel.contains('低電量')) {
+          } else if (dev.statusLabel.contains('Low')) {
             badgeBg = const Color(0xFFFFF8E1);
             badgeText = const Color(0xFFB08500);
           }
@@ -828,7 +828,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
               ),
               const Spacer(),
               Text(
-                '最後更新 $formattedTime',
+                'Updated $formattedTime',
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
                   color: AppColors.textSecondary,
@@ -859,7 +859,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '電量 ${dev.batteryPercent}%',
+                  'Battery ${dev.batteryPercent}%',
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -888,7 +888,7 @@ class _WatchLocationMapScreenState extends State<WatchLocationMapScreen> {
                   ),
                   icon: const Icon(Icons.my_location_rounded, size: 16),
                   label: Text(
-                    '下發此設備定位 (POST+GET)',
+                    'Request Location',
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,

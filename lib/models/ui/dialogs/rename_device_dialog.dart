@@ -46,16 +46,10 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
     _nameController = TextEditingController(text: widget.currentName);
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
   Future<void> _handleSave() async {
     final newName = _nameController.text.trim();
     if (newName.isEmpty) {
-      setState(() => _errorMessage = '請輸入設備名稱');
+      setState(() => _errorMessage = 'Please enter device name');
       return;
     }
 
@@ -78,7 +72,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已將設備名稱修改為「$newName」'),
+            content: Text('Device renamed to "$newName"'),
             backgroundColor: const Color(0xFF2E7D32),
             behavior: SnackBarBehavior.floating,
           ),
@@ -96,7 +90,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _errorMessage = '重命名失敗：$e';
+          _errorMessage = 'Rename failed: $e';
         });
       }
     }
@@ -115,7 +109,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
           ContainerIcon(),
           SizedBox(width: 12),
           Text(
-            '修改設備名稱',
+            'Rename Device',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w700,
@@ -130,7 +124,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '變更在 App 與列表中顯示的設備名稱：',
+              'Change the displayed name for this device:',
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -146,7 +140,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: '輸入設備顯示名稱',
+                hintText: 'Enter device name',
                 hintStyle: const TextStyle(color: AppColors.textTertiary),
                 filled: true,
                 fillColor: AppColors.surfaceLight,
@@ -193,7 +187,7 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
           child: const Text(
-            '取消',
+            'Cancel',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
         ),
@@ -218,13 +212,15 @@ class _RenameDeviceDialogState extends State<RenameDeviceDialog> {
                   ),
                 )
               : const Text(
-                  '儲存',
+                  'Save',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                 ),
         ),
       ],
     );
   }
+
+
 }
 
 class ContainerIcon extends StatelessWidget {

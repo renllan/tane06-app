@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:tane06_app/theme/app_theme.dart';
-import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
 import 'package:tane06_app/models/health_data_record.dart';
 
@@ -11,11 +10,13 @@ class BloodPressureReading {
   final DateTime time;
   final double systolic;
   final double diastolic;
+  final double? heartRate;
 
   const BloodPressureReading({
     required this.time,
     required this.systolic,
     required this.diastolic,
+    this.heartRate,
   });
 }
 
@@ -67,29 +68,74 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       }
       return;
     }
-    setState(() => _isLoadingApi = true);
-    try {
-      // 1. Primary query using official API code 'BP'
-      List<HealthDataRecord> records = await _deviceRepository.fetchHealthData(
-        imei: imeiToUse,
-        type: 'BP',
-      );
 
-      // Fallback query without type parameter if 'BP' returned empty
-      if (records.isEmpty) {
-        records = await _deviceRepository.fetchHealthData(imei: imeiToUse);
+    setState(() => _isLoadingApi = true);
+
+    try {
+      // 1. Fetch both BP and HR data endpoints concurrently
+      final results = await Future.wait([
+        _deviceRepository.fetchHealthData(imei: imeiToUse, type: 'BP'),
+        _deviceRepository.fetchHealthData(imei: imeiToUse, type: 'HR'),
+      ]);
+
+      final bpRecords = results[0];
+      final hrRecords = results[1];
+
+      // 2. Build a map of Heart Rates indexed by timestamp/time window
+      // Key: "YYYY-MM-DD HH:mm" or exact epoch millisecond
+      final Map<String, double> hrLookupMap = {};
+      for (final hrRecord in hrRecords) {
+        final dt = hrRecord.dateTime;
+        final timeKey = '${dt.year}-${dt.month}-${dt.day} ${dt.hour}:${dt.minute}';
+        
+        double? extractedHr;
+        if (hrRecord.data is Map) {
+          final map = hrRecord.data as Map;
+          final rawVal = map['heart_rate'] ?? map['heartRate'] ?? map['hr'] ?? map['bpm'] ?? map['value'] ?? map['val'];
+          if (rawVal is num) extractedHr = rawVal.toDouble();
+          else if (rawVal is String) extractedHr = double.tryParse(rawVal);
+        } else if (hrRecord.data is num) {
+          extractedHr = (hrRecord.data as num).toDouble();
+        } else if (hrRecord.data is String) {
+          extractedHr = double.tryParse(hrRecord.data as String);
+        }
+
+        if (extractedHr != null) {
+          hrLookupMap[timeKey] = extractedHr;
+        }
       }
 
-      final parsed = records
-          .map((r) => _recordToReading(r))
-          .whereType<BloodPressureReading>()
-          .toList();
+      // 3. Parse BP records and pair with nearest matching Heart Rate
+      final List<BloodPressureReading> parsedList = [];
 
-      parsed.sort((a, b) => a.time.compareTo(b.time));
+      for (final bpRecord in bpRecords) {
+        final bpReading = _recordToReading(bpRecord);
+        if (bpReading == null) continue;
+
+        // If BP record already contains HR internally, keep it;
+        // otherwise match against the separate HR API results by timestamp minute
+        if (bpReading.heartRate != null) {
+          parsedList.add(bpReading);
+        } else {
+          final timeKey = '${bpReading.time.year}-${bpReading.time.month}-${bpReading.time.day} ${bpReading.time.hour}:${bpReading.time.minute}';
+          final matchedHr = hrLookupMap[timeKey];
+
+          parsedList.add(
+            BloodPressureReading(
+              time: bpReading.time,
+              systolic: bpReading.systolic,
+              diastolic: bpReading.diastolic,
+              heartRate: matchedHr,
+            ),
+          );
+        }
+      }
+
+      parsedList.sort((a, b) => a.time.compareTo(b.time));
 
       if (mounted) {
         setState(() {
-          _apiReadings = parsed;
+          _apiReadings = parsedList;
           _isLoadingApi = false;
         });
       }
@@ -108,74 +154,67 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final dt = record.dateTime;
     double? sys;
     double? dia;
+    double? hr;
 
-    void extractFromMap(Map map) {
-      if (map.containsKey('bp') && map['bp'] is Map) {
-        extractFromMap(map['bp'] as Map);
-      }
-      if (map.containsKey('blood_pressure') && map['blood_pressure'] is Map) {
-        extractFromMap(map['blood_pressure'] as Map);
-      }
-      if (map.containsKey('bloodPressure') && map['bloodPressure'] is Map) {
-        extractFromMap(map['bloodPressure'] as Map);
-      }
-      if (map.containsKey('data') && map['data'] is Map) {
-        extractFromMap(map['data'] as Map);
-      }
+    void parseNumbers(String str) {
+      final numbers = str
+          .trim()
+          .split(RegExp(r'[/\s\-,]'))
+          .map(double.tryParse)
+          .whereType<double>()
+          .toList();
 
-      final sysRaw = map['systolic'] ??
-          map['sys'] ??
-          map['bp_sys'] ??
-          map['sbp'] ??
-          map['high'] ??
-          map['systolic_pressure'] ??
-          map['systolicPressure'] ??
-          map['high_pressure'];
-
-      final diaRaw = map['diastolic'] ??
-          map['dia'] ??
-          map['bp_dia'] ??
-          map['dbp'] ??
-          map['low'] ??
-          map['diastolic_pressure'] ??
-          map['diastolicPressure'] ??
-          map['low_pressure'];
-
-      if (sysRaw != null) {
-        sys = (sysRaw is num) ? sysRaw.toDouble() : double.tryParse(sysRaw.toString());
-      }
-      if (diaRaw != null) {
-        dia = (diaRaw is num) ? diaRaw.toDouble() : double.tryParse(diaRaw.toString());
-      }
-
-      final valStr = map['val'] ?? map['value'] ?? map['reading'];
-      if ((sys == null || dia == null) && valStr is String) {
-        final parts = valStr.trim().split(RegExp(r'[/\s\-,]'));
-        final numbers = parts.map((p) => double.tryParse(p)).whereType<double>().toList();
-        if (numbers.length >= 2) {
-          sys = numbers[0];
-          dia = numbers[1];
-        }
-      }
-    }
-
-    if (record.data is Map) {
-      extractFromMap(record.data as Map);
-    }
-
-    // String formats: "120/80", "120 80", "120,80", "120-80"
-    if ((sys == null || dia == null) && record.data is String) {
-      final str = (record.data as String).trim();
-      final parts = str.split(RegExp(r'[/\s\-,]'));
-      final numbers = parts.map((p) => double.tryParse(p)).whereType<double>().toList();
       if (numbers.length >= 2) {
-        sys = numbers[0];
-        dia = numbers[1];
+        sys ??= numbers[0];
+        dia ??= numbers[1];
+        if (numbers.length >= 3) hr ??= numbers[2];
       }
     }
+
+    void processData(dynamic data) {
+      if (data is String) {
+        parseNumbers(data);
+        return;
+      }
+
+      if (data is! Map) return;
+
+      // Unwrap nested map wrappers
+      for (final key in ['bp', 'blood_pressure', 'bloodPressure', 'data']) {
+        if (data[key] != null) processData(data[key]);
+      }
+
+      double? findNum(List<String> keys) {
+        for (final k in keys) {
+          final val = data[k];
+          if (val is num) return val.toDouble();
+          if (val is String) {
+            final parsed = double.tryParse(val);
+            if (parsed != null) return parsed;
+          }
+        }
+        return null;
+      }
+
+      sys ??= findNum(['systolic', 'sys', 'bp_sys', 'sbp', 'high', 'systolic_pressure', 'systolicPressure', 'high_pressure']);
+      dia ??= findNum(['diastolic', 'dia', 'bp_dia', 'dbp', 'low', 'diastolic_pressure', 'diastolicPressure', 'low_pressure']);
+      hr ??= findNum(['heart_rate', 'heartRate', 'hr', 'pulse', 'bpm', 'rate', 'pulse_rate', 'pulseRate']);
+
+      if (sys == null || dia == null) {
+        final rawStr = data['val'] ?? data['value'] ?? data['reading'];
+        if (rawStr is String) parseNumbers(rawStr);
+      }
+    }
+
+    processData(record.data);
 
     if (sys != null && dia != null) {
-      return BloodPressureReading(time: dt, systolic: sys!, diastolic: dia!);
+      return BloodPressureReading(
+        time: dt,
+        systolic: sys!,
+        diastolic: dia!,
+        heartRate: hr,
+      );
     }
     return null;
   }
@@ -184,7 +223,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final imeiToUse = widget.imei;
     if (imeiToUse == null || imeiToUse.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目前為範例模式，發送模擬量測信號')),
+        const SnackBar(content: Text('Demo mode: sending simulated measurement signal')),
       );
       return;
     }
@@ -208,8 +247,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       final isSuccess = res['success'] == true;
       final serverMsg = res['message'] as String?;
       final msg = isSuccess
-          ? (serverMsg ?? '已成功發送即時量測指令！正在同步最新血壓數據...')
-          : (serverMsg ?? '發送量測指令失敗');
+          ? (serverMsg ?? 'Measurement command sent! Syncing latest BP data...')
+          : (serverMsg ?? 'Failed to send measurement command');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -219,10 +258,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       );
 
       if (isSuccess) {
-        // Refetch immediately
         await _fetchHealthDataApi();
-
-        // Refetch after delays to catch device upload
         Future.delayed(const Duration(seconds: 4), () {
           if (mounted) _fetchHealthDataApi();
         });
@@ -235,7 +271,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('即時量測請求失敗：$e'),
+          content: Text('Measurement request failed: $e'),
           backgroundColor: const Color(0xFFB00020),
         ),
       );
@@ -243,14 +279,12 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   Widget _buildDataSourceBadge() {
-    final isApi = _apiReadings != null && _apiReadings!.isNotEmpty;
-
     String labelText;
     Color badgeColor;
     Widget iconWidget;
 
     if (_isLoadingApi) {
-      labelText = '擷取 API 數據中...';
+      labelText = 'Fetching API Data...';
       badgeColor = const Color(0xFF007AFF);
       iconWidget = const SizedBox(
         width: 10,
@@ -261,7 +295,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         ),
       );
     } else if (_apiReadings != null && _apiReadings!.isNotEmpty) {
-      labelText = '來自 API 的數據 (${_apiReadings!.length} 筆)';
+      labelText = 'API Data (${_apiReadings!.length} records)';
       badgeColor = const Color(0xFF30D158);
       iconWidget = Icon(
         Icons.cloud_done_rounded,
@@ -269,7 +303,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         color: badgeColor,
       );
     } else {
-      labelText = 'API 尚無紀錄';
+      labelText = 'No API Data';
       badgeColor = const Color(0xFF8E8E93);
       iconWidget = Icon(
         Icons.cloud_off_rounded,
@@ -329,9 +363,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   String _formatDayLabel(DateTime dt) {
-    if (_isTodaySelected) return '今天 (Today)';
-    if (_isYesterdaySelected) return '昨天 (Yesterday)';
-    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isTodaySelected) return 'Today';
+    if (_isYesterdaySelected) return 'Yesterday';
+    const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return weekdayNames[dt.weekday - 1];
   }
 
@@ -339,10 +373,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
   }
 
-  /// Returns readings filtered to the active time window and selected date:
-  /// - Day   → 00:00 to 23:59 of _selectedDay
-  /// - Week  → past 7 days up to end of _selectedDay
-  /// - Month → past 30 days up to end of _selectedDay
   List<BloodPressureReading> get _filteredReadings {
     final DateTime startCutoff;
     final DateTime endCutoff;
@@ -399,7 +429,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 color: AppColors.bloodPressure,
               ),
             ),
-            tooltip: '前一天 (Previous Day)',
+            tooltip: 'Previous Day',
           ),
 
           GestureDetector(
@@ -471,14 +501,13 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 color: canGoNext ? AppColors.bloodPressure : Colors.grey,
               ),
             ),
-            tooltip: '後一天 (Next Day)',
+            tooltip: 'Next Day',
           ),
         ],
       ),
     );
   }
 
-  /// Most recent reading for the active date / filter period.
   BloodPressureReading? get _lastReading =>
       _filteredReadings.isNotEmpty ? _filteredReadings.last : null;
 
@@ -504,15 +533,14 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       : _filteredReadings.map((r) => r.diastolic).reduce((a, b) => a + b) /
           _filteredReadings.length;
 
-
   String get _statsSectionTitle {
     switch (_selectedFilter) {
       case TimeFilter.day:
-        return '每日統計';
+        return 'Daily Statistics';
       case TimeFilter.week:
-        return '本週統計';
+        return 'Weekly Statistics';
       case TimeFilter.month:
-        return '本月統計';
+        return 'Monthly Statistics';
     }
   }
 
@@ -532,7 +560,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             Icon(Icons.tune_rounded, color: AppColors.primary),
             SizedBox(width: 8),
             Text(
-              '自訂警示閥值',
+              'Custom Warning Limits',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -548,11 +576,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               controller: sysController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '收縮壓警示上限 (mmHg)',
+                labelText: 'Systolic Limit (mmHg)',
                 prefixIcon: const Icon(Icons.arrow_upward_rounded,
                     color: BloodPressurePage.systolicColor),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 14),
@@ -560,11 +587,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               controller: diaController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '舒張壓警示上限 (mmHg)',
+                labelText: 'Diastolic Limit (mmHg)',
                 prefixIcon: const Icon(Icons.arrow_downward_rounded,
                     color: BloodPressurePage.diastolicColor),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -572,8 +598,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消',
-                style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -587,7 +612,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      '已更新警示閥值：${newSys.toInt()}/${newDia.toInt()} mmHg',
+                      'Warning threshold updated: ${newSys.toInt()}/${newDia.toInt()} mmHg',
                     ),
                   ),
                 );
@@ -597,11 +622,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('儲存設定',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -611,6 +634,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   void _showAddReadingDialog(BuildContext context) {
     final sysController = TextEditingController(text: '125');
     final diaController = TextEditingController(text: '82');
+    final hrController = TextEditingController(text: '72');
 
     showModalBottomSheet(
       context: context,
@@ -635,7 +659,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 Icon(Icons.add_chart_rounded, color: AppColors.bloodPressure),
                 SizedBox(width: 8),
                 Text(
-                  '手動輸入血壓數值',
+                  'Enter Blood Pressure Reading',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -649,11 +673,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               controller: sysController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '收縮壓 (Systolic mmHg)',
-                prefixIcon: const Icon(Icons.arrow_upward_rounded,
-                    color: BloodPressurePage.systolicColor),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                labelText: 'Systolic (mmHg)',
+                prefixIcon: const Icon(Icons.arrow_upward_rounded, color: BloodPressurePage.systolicColor),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 14),
@@ -661,11 +683,19 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               controller: diaController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: '舒張壓 (Diastolic mmHg)',
-                prefixIcon: const Icon(Icons.arrow_downward_rounded,
-                    color: BloodPressurePage.diastolicColor),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                labelText: 'Diastolic (mmHg)',
+                prefixIcon: const Icon(Icons.arrow_downward_rounded, color: BloodPressurePage.diastolicColor),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: hrController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Heart Rate (bpm)',
+                prefixIcon: const Icon(Icons.favorite_rounded, color: Color(0xFFE96B6B)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 20),
@@ -676,6 +706,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 onPressed: () {
                   final sys = double.tryParse(sysController.text);
                   final dia = double.tryParse(diaController.text);
+                  final hr = double.tryParse(hrController.text);
                   if (sys != null && dia != null) {
                     setState(() {
                       _userCustomReadings.add(
@@ -683,12 +714,13 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                           time: DateTime.now(),
                           systolic: sys,
                           diastolic: dia,
+                          heartRate: hr,
                         ),
                       );
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('已記錄新數值：${sys.toInt()}/${dia.toInt()} mmHg'),
+                        content: Text('Recorded new value: ${sys.toInt()}/${dia.toInt()} mmHg'),
                       ),
                     );
                   }
@@ -697,11 +729,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.bloodPressure,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text(
-                  '儲存並更新圖表',
+                  'Save & Update Chart',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -712,127 +743,486 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  void _showFrequencySettingDialog() {
-    final controller = TextEditingController(text: '60');
-    showDialog(
+  static String _sanitizeBpTime(String input, String fallback) {
+    final clean = input.replaceAll(RegExp(r'[^0-9:]'), '').trim();
+    if (clean.isEmpty) return fallback;
+
+    final parts = clean.split(':');
+    int h = 7;
+    int m = 0;
+
+    if (parts.length == 1) {
+      final digits = parts[0];
+      if (digits.length == 4) {
+        h = int.tryParse(digits.substring(0, 2)) ?? 7;
+        m = int.tryParse(digits.substring(2, 4)) ?? 0;
+      } else if (digits.length <= 2) {
+        h = int.tryParse(digits) ?? 7;
+        m = 0;
+      } else {
+        return fallback;
+      }
+    } else {
+      h = int.tryParse(parts[0]) ?? 7;
+      m = int.tryParse(parts[1]) ?? 0;
+    }
+
+    h = h.clamp(0, 23);
+    m = m.clamp(0, 59);
+
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  void _showFrequencySettingDialog() async {
+    String currentInterval = '60';
+    String currentAmTime = '07:00';
+    String currentPmTime = '18:00';
+
+    if (widget.imei != null && widget.imei!.isNotEmpty) {
+      try {
+        final settings = await _deviceRepository.fetchSettings(imei: widget.imei!);
+        final bp = settings.health.bloodPressure;
+        currentInterval = bp.interval;
+        currentAmTime = bp.timerMeasure.amTime;
+        currentPmTime = bp.timerMeasure.pmTime;
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    final controller = TextEditingController(text: currentInterval);
+    final amController = TextEditingController(text: currentAmTime);
+    final pmController = TextEditingController(text: currentPmTime);
+
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.timer_outlined, color: AppColors.bloodPressure),
-              SizedBox(width: 8),
-              Text('設定血壓量測頻率', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '請選擇量測頻率或手動輸入分鐘數：',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        builder: (context, setDialogState) {
+          String formatTimeBadge(String rawTime) {
+            final clean = rawTime.replaceAll(RegExp(r'[^0-9:]'), '');
+            final parts = clean.split(':');
+            int h = 7;
+            int m = 0;
+            if (parts.isNotEmpty) {
+              if (parts[0].length == 4) {
+                h = int.tryParse(parts[0].substring(0, 2)) ?? 7;
+                m = int.tryParse(parts[0].substring(2, 4)) ?? 0;
+              } else {
+                h = int.tryParse(parts[0]) ?? 7;
+              }
+            }
+            if (parts.length > 1) {
+              m = int.tryParse(parts[1]) ?? 0;
+            }
+            final period = h >= 12 ? 'PM' : 'AM';
+            final displayH = h % 12 == 0 ? 12 : h % 12;
+            final hhStr = displayH.toString().padLeft(2, '0');
+            final mmStr = m.toString().padLeft(2, '0');
+            return '$hhStr:$mmStr $period';
+          }
+
+          Widget buildScheduleCard({
+            required String title,
+            required String subtitle,
+            required IconData icon,
+            required Color accentColor,
+            required Color bgGradientStart,
+            required Color bgGradientEnd,
+            required TextEditingController timeController,
+            required List<String> presets,
+            required ValueChanged<String> onChanged,
+          }) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [bgGradientStart, bgGradientEnd],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    '10',
-                    '15',
-                    '30',
-                    '60',
-                    '120',
-                    '0',
-                  ].map((m) {
-                    final isSelected = controller.text == m;
-                    final label = m == '0' ? '手動/關閉' : '$m 分';
-                    return ChoiceChip(
-                      label: Text(label),
-                      selected: isSelected,
-                      selectedColor: AppColors.bloodPressure.withOpacity(0.2),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setDialogState(() {
-                            controller.text = m;
-                          });
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: '手動輸入頻率 (分鐘)',
-                    hintText: '例如: 45',
-                    prefixIcon: const Icon(Icons.edit_calendar_rounded, color: AppColors.bloodPressure),
-                    suffixText: '分鐘',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: accentColor.withOpacity(0.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor.withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  onChanged: (_) => setDialogState(() {}),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final val = controller.text.trim();
-                final intervalValue = (int.tryParse(val) ?? 60).toString();
-                if (widget.imei != null && widget.imei!.isNotEmpty) {
-                  try {
-                    await _deviceRepository.saveSettings(
-                      imei: widget.imei!,
-                      patch: {
-                        'health': {
-                          'blood_pressure': {
-                            'interval': intervalValue,
-                          }
-                        }
-                      },
-                    );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('已透過 API 成功更新血壓量測頻率為 $intervalValue 分鐘！'),
-                          backgroundColor: const Color(0xFF2E7D32),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('更新設定失敗: $e')),
-                      );
-                    }
-                  }
-                } else {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('血壓量測頻率已設為 $intervalValue 分鐘')),
-                    );
-                  }
-                }
-                if (mounted) Navigator.of(ctx).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.bloodPressure,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ],
               ),
-              child: const Text('確認更新', style: TextStyle(fontWeight: FontWeight.w700)),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: accentColor, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary.withOpacity(0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: timeController,
+                          keyboardType: TextInputType.datetime,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: accentColor,
+                            letterSpacing: 1.0,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Input Time (HH:mm)',
+                            hintText: 'e.g. 07:30',
+                            prefixIcon: Icon(Icons.edit_outlined, color: accentColor, size: 18),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: accentColor.withOpacity(0.3)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: accentColor.withOpacity(0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: accentColor, width: 2),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            onChanged(val);
+                            setDialogState(() {});
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          formatTimeBadge(timeController.text),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: presets.map((preset) {
+                        final isSelected = timeController.text.trim() == preset;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(preset),
+                            selected: isSelected,
+                            selectedColor: accentColor,
+                            labelStyle: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? Colors.white : AppColors.textPrimary,
+                            ),
+                            backgroundColor: Colors.white,
+                            side: BorderSide(
+                              color: isSelected ? accentColor : Colors.grey.withOpacity(0.3),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (selected) {
+                              if (selected) {
+                                setDialogState(() {
+                                  timeController.text = preset;
+                                  onChanged(preset);
+                                });
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-          ],
-        ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.bloodPressure.withOpacity(0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.access_time_filled_rounded,
+                              color: AppColors.bloodPressure, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'BP Measurement Frequency',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                'Enter measurement time (HH:mm) or select preset',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Periodic Measurement Frequency',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        '10',
+                        '15',
+                        '30',
+                        '60',
+                        '120',
+                        '0',
+                      ].map((m) {
+                        final isSelected = controller.text == m;
+                        final label = m == '0' ? 'Off / Manual' : '$m min';
+                        return ChoiceChip(
+                          label: Text(label),
+                          selected: isSelected,
+                          selectedColor: AppColors.bloodPressure,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : AppColors.textPrimary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          backgroundColor: AppColors.bloodPressure.withOpacity(0.05),
+                          side: BorderSide(
+                            color: isSelected
+                                ? AppColors.bloodPressure
+                                : Colors.grey.withOpacity(0.2),
+                          ),
+                          onSelected: (selected) {
+                            if (selected) {
+                              setDialogState(() {
+                                controller.text = m;
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Custom Frequency (minutes)',
+                        hintText: 'Enter custom minutes (e.g. 45)',
+                        prefixIcon: const Icon(Icons.edit_calendar_rounded, color: AppColors.bloodPressure),
+                        suffixText: 'min',
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Daily Scheduled Times',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    buildScheduleCard(
+                      title: 'Morning Time',
+                      subtitle: 'Recommended within 1 hour after waking up',
+                      icon: Icons.wb_sunny_rounded,
+                      accentColor: const Color(0xFFE67E22),
+                      bgGradientStart: const Color(0xFFFFF9F2),
+                      bgGradientEnd: const Color(0xFFFFF2E5),
+                      timeController: amController,
+                      presets: ['06:30', '07:00', '07:30', '08:00', '08:30'],
+                      onChanged: (val) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    buildScheduleCard(
+                      title: 'Evening Time',
+                      subtitle: 'Recommended before dinner or before sleep',
+                      icon: Icons.nights_stay_rounded,
+                      accentColor: const Color(0xFF4A69BD),
+                      bgGradientStart: const Color(0xFFF4F6FD),
+                      bgGradientEnd: const Color(0xFFEAEEFC),
+                      timeController: pmController,
+                      presets: ['17:30', '18:00', '18:30', '19:00', '20:00'],
+                      onChanged: (val) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final val = controller.text.trim();
+                          final intervalValue = (int.tryParse(val) ?? 60).clamp(0, 1440).toString();
+                          final amTimeVal = _sanitizeBpTime(amController.text, '07:00');
+                          final pmTimeVal = _sanitizeBpTime(pmController.text, '18:00');
+                          if (widget.imei != null && widget.imei!.isNotEmpty) {
+                            try {
+                              await _deviceRepository.saveSettings(
+                                imei: widget.imei!,
+                                patch: {
+                                  'health': {
+                                    'blood_pressure': {
+                                      'interval': intervalValue,
+                                      'timer_measure': {
+                                        'am_time': amTimeVal,
+                                        'pm_time': pmTimeVal,
+                                      }
+                                    }
+                                  }
+                                },
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('BP settings updated! (Interval: $intervalValue min, AM: $amTimeVal, PM: $pmTimeVal)'),
+                                    backgroundColor: const Color(0xFF2E7D32),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Update failed: $e')),
+                                );
+                              }
+                            }
+                          } else {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('BP measurement settings changed (AM: $amTimeVal, PM: $pmTimeVal)')),
+                              );
+                            }
+                          }
+                          if (mounted) Navigator.of(ctx).pop();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bloodPressure,
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Save Settings',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -846,7 +1236,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
-          '血壓',
+          'Blood Pressure',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
@@ -857,12 +1247,12 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.timer_outlined, color: AppColors.bloodPressure),
-            tooltip: '設定血壓量測頻率',
+            tooltip: 'BP Measurement Settings',
             onPressed: _showFrequencySettingDialog,
           ),
           IconButton(
             icon: const Icon(Icons.monitor_heart_rounded, color: AppColors.bloodPressure),
-            tooltip: '發送即時量測指令',
+            tooltip: 'Measure Now',
             onPressed: _triggerLiveMeasurement,
           ),
           const SizedBox(width: 8),
@@ -879,57 +1269,53 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLastReadingCard(),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '血壓趨勢',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+            children: [
+              _buildLastReadingCard(),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'BP Trends',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 8),
-                _buildPeriodSelector(),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _buildDaySelectorBar(),
-            const SizedBox(height: 14),
-            _buildChartCard(),
-            const SizedBox(height: 24),
-            Text(
-              _statsSectionTitle,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                  const SizedBox(width: 8),
+                  _buildPeriodSelector(),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildStatsSection(),
-            const SizedBox(height: 24),
-            _buildWarningValuesSection(),
-            const SizedBox(height: 32),
-            _buildMeasureNowButton(context),
-            const SizedBox(height: 40),
-          ],
+              const SizedBox(height: 14),
+              _buildDaySelectorBar(),
+              const SizedBox(height: 14),
+              _buildChartCard(),
+              const SizedBox(height: 24),
+              Text(
+                _statsSectionTitle,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildStatsSection(),
+              const SizedBox(height: 24),
+              _buildWarningValuesSection(),
+              const SizedBox(height: 32),
+              _buildMeasureNowButton(context),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
-
-  // ---------------------------------------------------------------------
-  // Warning Values & Threshold Section
-  // ---------------------------------------------------------------------
   Widget _buildWarningValuesSection() {
     final sys = _lastReading?.systolic ?? 120;
     final dia = _lastReading?.diastolic ?? 80;
@@ -944,7 +1330,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '血壓警示標準與閥值',
+          'BP Standards & Thresholds',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -953,7 +1339,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         ),
         const SizedBox(height: 14),
 
-        // 1. Current Reading Status Evaluation Banner
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -973,7 +1358,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     Row(
                       children: [
                         const Text(
-                          '目前狀態評估：',
+                          'Current Assessment: ',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -1010,7 +1395,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         ),
         const SizedBox(height: 14),
 
-        // 2. Reference Table / Range Guide
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1026,7 +1410,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                   Icon(Icons.shield_outlined, size: 18, color: AppColors.primary),
                   SizedBox(width: 8),
                   Text(
-                    '血壓分級警示對照表',
+                    'Blood Pressure Reference Guide',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -1037,42 +1421,65 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               ),
               const SizedBox(height: 14),
               _thresholdRow(
-                category: '理想正常 (Normal)',
-                systolicRange: '< 120',
-                diastolicRange: '< 80',
+                category: 'Low BP',
+                systolicRange: '< 90',
+                diastolicRange: '< 60',
+                badgeColor: const Color(0xFF00ACC1),
+                badgeBg: const Color(0xFFE0F7FA),
+              ),
+              const Divider(height: 20),
+              _thresholdRow(
+                category: 'Normal',
+                systolicRange: '90-119',
+                diastolicRange: '60-79',
                 badgeColor: const Color(0xFF2E7D32),
                 badgeBg: const Color(0xFFE8F5E9),
               ),
               const Divider(height: 20),
               _thresholdRow(
-                category: '偏高警示 (Elevated)',
+                category: 'Normal High',
                 systolicRange: '120-129',
                 diastolicRange: '< 80',
+                badgeColor: const Color(0xFF1976D2),
+                badgeBg: const Color(0xFFE3F2FD),
+              ),
+              const Divider(height: 20),
+              _thresholdRow(
+                category: 'Mild',
+                systolicRange: '130-139',
+                diastolicRange: '80-89',
                 badgeColor: const Color(0xFFB08500),
                 badgeBg: const Color(0xFFFFF8E1),
               ),
               const Divider(height: 20),
               _thresholdRow(
-                category: '輕度高血壓 (Stage 1)',
-                systolicRange: '130-139',
-                diastolicRange: '80-89',
+                category: 'Moderate',
+                systolicRange: '140-159',
+                diastolicRange: '90-99',
                 badgeColor: const Color(0xFFE65100),
                 badgeBg: const Color(0xFFFFF3E0),
               ),
               const Divider(height: 20),
               _thresholdRow(
-                category: '重度高血壓 (Stage 2)',
-                systolicRange: '≥ 140',
-                diastolicRange: '≥ 90',
+                category: 'Severe',
+                systolicRange: '160-179',
+                diastolicRange: '100-109',
                 badgeColor: const Color(0xFFB00020),
                 badgeBg: const Color(0xFFFFEBEE),
+              ),
+              const Divider(height: 20),
+              _thresholdRow(
+                category: 'Crisis',
+                systolicRange: '≥ 180',
+                diastolicRange: '≥ 110',
+                badgeColor: const Color(0xFF880E4F),
+                badgeBg: const Color(0xFFFCE4EC),
               ),
             ],
           ),
         ),
         const SizedBox(height: 14),
 
-        // 3. Custom Warning Alert Settings Card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1089,7 +1496,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      '個人推播警示閥值',
+                      'Personal Alert Thresholds',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1109,7 +1516,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                           Icon(Icons.edit_rounded, size: 14, color: AppColors.primary),
                           SizedBox(width: 4),
                           Text(
-                            '自訂閥值',
+                            'Edit Thresholds',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
                           ),
                         ],
@@ -1125,7 +1532,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     child: GestureDetector(
                       onTap: () => _showEditThresholdsDialog(context),
                       child: _alertLimitItem(
-                        '收縮壓警示上限',
+                        'Systolic Limit',
                         '${_warningSystolicLimit.toInt()} mmHg',
                         BloodPressurePage.systolicColor,
                       ),
@@ -1136,7 +1543,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     child: GestureDetector(
                       onTap: () => _showEditThresholdsDialog(context),
                       child: _alertLimitItem(
-                        '舒張壓警示上限',
+                        'Diastolic Limit',
                         '${_warningDiastolicLimit.toInt()} mmHg',
                         BloodPressurePage.diastolicColor,
                       ),
@@ -1155,36 +1562,68 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final bool exceedsUserThreshold =
         systolic >= _warningSystolicLimit || diastolic >= _warningDiastolicLimit;
 
-    if (systolic >= 140 || diastolic >= 90) {
+    if (systolic >= 180 || diastolic >= 110) {
       return {
-        'status': '重度高血壓 (Stage 2)',
+        'status': 'Crisis',
+        'color': const Color(0xFF880E4F),
+        'bgColor': const Color(0xFFFCE4EC),
+        'desc': 'Extremely dangerous blood pressure! Stop activity and seek emergency medical care immediately.',
+        'icon': Icons.emergency_rounded,
+      };
+    } else if (systolic >= 160 || diastolic >= 100) {
+      return {
+        'status': 'Severe',
         'color': const Color(0xFFB00020),
         'bgColor': const Color(0xFFFFEBEE),
-        'desc': '目前數值顯著偏高！建議靜坐休息後重新測量，並儘速諮詢醫師專業評估。',
+        'desc': 'Blood pressure is significantly high. Please rest quietly and consult a physician promptly.',
         'icon': Icons.error_rounded,
+      };
+    } else if (systolic >= 140 || diastolic >= 90) {
+      return {
+        'status': 'Moderate',
+        'color': const Color(0xFFE65100),
+        'bgColor': const Color(0xFFFFF3E0),
+        'desc': 'Blood pressure is elevated. Consider lifestyle adjustments and medical evaluation.',
+        'icon': Icons.warning_rounded,
       };
     } else if (exceedsUserThreshold) {
       return {
-        'status': '超出個人自訂閥值',
+        'status': 'Exceeds Custom Limit',
         'color': const Color(0xFFE65100),
         'bgColor': const Color(0xFFFFF3E0),
-        'desc': '讀數高於您設定的個人警示門檻 (${_warningSystolicLimit.toInt()}/${_warningDiastolicLimit.toInt()} mmHg)，請適度放鬆休息。',
+        'desc': 'Reading is higher than your custom warning limit (${_warningSystolicLimit.toInt()}/${_warningDiastolicLimit.toInt()} mmHg).',
         'icon': Icons.warning_amber_rounded,
       };
-    } else if (systolic >= 120) {
+    } else if ((systolic >= 130 && systolic <= 139) || (diastolic >= 80 && diastolic <= 89)) {
       return {
-        'status': '偏高警示 (Elevated)',
+        'status': 'Mild',
         'color': const Color(0xFFB08500),
         'bgColor': const Color(0xFFFFF8E1),
-        'desc': '血壓處於臨界區間，保持規律運動與放鬆心情即可恢復理想狀態。',
+        'desc': 'Blood pressure is slightly high. Maintain a healthy diet, exercise, and adequate rest.',
         'icon': Icons.info_rounded,
+      };
+    } else if ((systolic >= 120 && systolic <= 129) && diastolic < 80) {
+      return {
+        'status': 'Normal High',
+        'color': const Color(0xFF1976D2),
+        'bgColor': const Color(0xFFE3F2FD),
+        'desc': 'Blood pressure is in borderline normal range.',
+        'icon': Icons.info_outline_rounded,
+      };
+    } else if (systolic < 90 || diastolic < 60) {
+      return {
+        'status': 'Low BP',
+        'color': const Color(0xFF00ACC1),
+        'bgColor': const Color(0xFFE0F7FA),
+        'desc': 'Blood pressure is low. Stay hydrated and monitor for dizziness.',
+        'icon': Icons.arrow_downward_rounded,
       };
     } else {
       return {
-        'status': '理想正常 (Normal)',
+        'status': 'Normal',
         'color': const Color(0xFF2E7D32),
         'bgColor': const Color(0xFFE8F5E9),
-        'desc': '血壓數值符合健康標準與個人自訂閥值，請繼續維持良好的健康習慣！',
+        'desc': 'Blood pressure is within optimal healthy range. Keep up the good habits!',
         'icon': Icons.check_circle_rounded,
       };
     }
@@ -1223,12 +1662,12 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '收縮壓: $systolicRange mmHg',
+              'Systolic: $systolicRange mmHg',
               style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             Text(
-              '舒張壓: $diastolicRange mmHg',
+              'Diastolic: $diastolicRange mmHg',
               style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
           ],
@@ -1274,9 +1713,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _periodButton('日', TimeFilter.day),
-          _periodButton('週', TimeFilter.week),
-          _periodButton('月', TimeFilter.month),
+          _periodButton('Day', TimeFilter.day),
+          _periodButton('Week', TimeFilter.week),
+          _periodButton('Month', TimeFilter.month),
         ],
       ),
     );
@@ -1309,9 +1748,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Last reading
-  // ---------------------------------------------------------------------
   Widget _buildLastReadingCard() {
     final r = _lastReading;
     if (r == null) {
@@ -1330,7 +1766,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 const Icon(Icons.monitor_heart_rounded, color: AppColors.bloodPressure),
                 const SizedBox(width: 8),
                 const Text(
-                  '即時血壓數據',
+                  'Live Blood Pressure',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -1346,8 +1782,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     border: Border.all(color: const Color(0xFFFF9F0A), width: 1),
                   ),
                   child: Text(
-                    '${_formatDayDateStr(_selectedDay)} 尚無紀錄',
-                    style: TextStyle(
+                    '${_formatDayDateStr(_selectedDay)} No Data',
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFFFF9F0A),
@@ -1368,7 +1804,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             const Text('mmHg', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
             const SizedBox(height: 16),
             const Text(
-              '裝置今日尚未上傳血壓數據，請點擊下方按鈕發送即時測量指令',
+              'No blood pressure data uploaded for today. Tap the button below to request a measurement.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
@@ -1382,7 +1818,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               icon: const Icon(Icons.sensors_rounded, size: 18),
-              label: const Text('發送即時量測指令', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text('Measure Now', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -1397,40 +1833,52 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final second = r.time.second.toString().padLeft(2, '0');
     final fullTimestamp = '$year-$month-$day $hour:$minute:$second';
 
-
-    // Blood Pressure Category Percentage Donut Circle calculation
-    // Use filtered readings so the donut reflects the active time period.
     final readings = _filteredReadings;
+    int lowBpCount = 0;
     int normalCount = 0;
-    int elevatedCount = 0;
-    int stage1Count = 0;
-    int stage2Count = 0;
+    int normalHighCount = 0;
+    int mildCount = 0;
+    int moderateCount = 0;
+    int severeCount = 0;
+    int crisisCount = 0;
 
     for (final reading in readings) {
       final sys = reading.systolic;
       final dia = reading.diastolic;
-      if (sys >= 140 || dia >= 90) {
-        stage2Count++;
+      if (sys >= 180 || dia >= 110) {
+        crisisCount++;
+      } else if (sys >= 160 || dia >= 100) {
+        severeCount++;
+      } else if (sys >= 140 || dia >= 90) {
+        moderateCount++;
       } else if ((sys >= 130 && sys <= 139) || (dia >= 80 && dia <= 89)) {
-        stage1Count++;
+        mildCount++;
       } else if ((sys >= 120 && sys <= 129) && dia < 80) {
-        elevatedCount++;
+        normalHighCount++;
+      } else if (sys < 90 || dia < 60) {
+        lowBpCount++;
       } else {
         normalCount++;
       }
     }
 
     final total = readings.length;
+    final lowBpPct = total > 0 ? (lowBpCount / total * 100).round() : 0;
     final normalPct = total > 0 ? (normalCount / total * 100).round() : 0;
-    final elevatedPct = total > 0 ? (elevatedCount / total * 100).round() : 0;
-    final stage1Pct = total > 0 ? (stage1Count / total * 100).round() : 0;
-    final stage2Pct = total > 0 ? (stage2Count / total * 100).round() : 0;
+    final normalHighPct = total > 0 ? (normalHighCount / total * 100).round() : 0;
+    final mildPct = total > 0 ? (mildCount / total * 100).round() : 0;
+    final moderatePct = total > 0 ? (moderateCount / total * 100).round() : 0;
+    final severePct = total > 0 ? (severeCount / total * 100).round() : 0;
+    final crisisPct = total > 0 ? (crisisCount / total * 100).round() : 0;
 
     final categories = [
-      (name: '理想正常 (Normal)', count: normalCount, pct: normalPct, color: const Color(0xFF30D158)),
-      (name: '血壓偏高 (Elevated)', count: elevatedCount, pct: elevatedPct, color: const Color(0xFFFF9F0A)),
-      (name: '一級高血壓 (Stage 1)', count: stage1Count, pct: stage1Pct, color: const Color(0xFFFF6B35)),
-      (name: '二級高血壓 (Stage 2)', count: stage2Count, pct: stage2Pct, color: const Color(0xFFFF2D55)),
+      (name: 'Low BP', count: lowBpCount, pct: lowBpPct, color: const Color(0xFF00ACC1)),
+      (name: 'Normal', count: normalCount, pct: normalPct, color: const Color(0xFF30D158)),
+      (name: 'Normal High', count: normalHighCount, pct: normalHighPct, color: const Color(0xFF42A5F5)),
+      (name: 'Mild', count: mildCount, pct: mildPct, color: const Color(0xFFFFCA28)),
+      (name: 'Moderate', count: moderateCount, pct: moderatePct, color: const Color(0xFFFF9F0A)),
+      (name: 'Severe', count: severeCount, pct: severePct, color: const Color(0xFFFF2D55)),
+      (name: 'Crisis', count: crisisCount, pct: crisisPct, color: const Color(0xFF880E4F)),
     ];
 
     return Container(
@@ -1451,11 +1899,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Upper section: Reading Info on Left, Donut Circle Chart on Top Right
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Left Column: Latest Reading Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1466,7 +1912,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Text(
-                          '最新讀數',
+                          'Latest Reading',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -1522,20 +1968,48 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
+                    const SizedBox(height: 8),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
-                        const Icon(Icons.access_time_rounded, size: 12, color: AppColors.textTertiary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '$fullTimestamp',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textTertiary,
+                        if (r.heartRate != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE96B6B).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.favorite_rounded, size: 12, color: Color(0xFFE96B6B)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${r.heartRate!.toInt()} bpm',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFE96B6B),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.access_time_rounded, size: 12, color: AppColors.textTertiary),
+                            const SizedBox(width: 4),
+                            Text(
+                              fullTimestamp,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1543,7 +2017,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Right Column (Top Right): Circle Donut Chart
               SizedBox(
                 width: 125,
                 height: 125,
@@ -1566,7 +2039,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             ],
           ),
 
-          // Divider separating top reading & donut chart from category list
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Divider(
@@ -1575,7 +2047,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             ),
           ),
 
-          // Lower Section: Category Breakdown List
           Row(
             children: [
               Container(
@@ -1588,7 +2059,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               ),
               const SizedBox(width: 8),
               const Text(
-                '血壓分佈比例',
+                'BP Category Breakdown',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1625,7 +2096,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                       ),
                     ),
                     Text(
-                      '${cat.count}次 (${cat.pct}%)',
+                      '${cat.count} times (${cat.pct}%)',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -1642,27 +2113,18 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Chart
-  // ---------------------------------------------------------------------
-  /// Returns the appropriate "no data" label for the active filter.
   String get _emptyChartLabel {
     final dateStr = _formatDayDateStr(_selectedDay);
     switch (_selectedFilter) {
       case TimeFilter.day:
-        return '$dateStr 尚無血壓趨勢數據';
+        return 'No BP trend data for $dateStr';
       case TimeFilter.week:
-        return '$dateStr 前 7 天尚無血壓數據';
+        return 'No BP trend data for 7 days before $dateStr';
       case TimeFilter.month:
-        return '$dateStr 前 30 天尚無血壓數據';
+        return 'No BP trend data for 30 days before $dateStr';
     }
   }
 
-  /// For Week / Month views: collapse all readings for the same calendar day
-  /// into a single averaged [BloodPressureReading] so the chart shows one
-  /// clean point per day instead of every individual measurement.
-  /// The representative [time] is set to noon of that day so that
-  /// [_getBottomTitleText] can still derive the correct label.
   List<BloodPressureReading> _aggregateByDay(
       List<BloodPressureReading> readings) {
     if (readings.isEmpty) return [];
@@ -1680,11 +2142,17 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           list.map((r) => r.systolic).reduce((a, b) => a + b) / list.length;
       final avgDia =
           list.map((r) => r.diastolic).reduce((a, b) => a + b) / list.length;
+
+      final hrList = list.map((r) => r.heartRate).whereType<double>();
+      final avgHr = hrList.isNotEmpty
+          ? (hrList.reduce((a, b) => a + b) / hrList.length).roundToDouble()
+          : null;
+
       return BloodPressureReading(
-        // Use noon as a stable representative timestamp for label formatting.
         time: date.add(const Duration(hours: 12)),
         systolic: avgSys.roundToDouble(),
         diastolic: avgDia.roundToDouble(),
+        heartRate: avgHr,
       );
     }).toList()
       ..sort((a, b) => a.time.compareTo(b.time));
@@ -1693,11 +2161,13 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   Widget _buildChartCard() {
-    // Day  → individual readings plotted by time-of-day.
-    // Week → one averaged point per calendar day (up to 7 points).
-    // Month→ one averaged point per calendar day (up to 30 points).
-    final readings = List<BloodPressureReading>.from(_filteredReadings)
+    final rawReadings = List<BloodPressureReading>.from(_filteredReadings)
       ..sort((a, b) => a.time.compareTo(b.time));
+
+    final readings = _selectedFilter == TimeFilter.day
+        ? rawReadings
+        : _aggregateByDay(rawReadings);
+
     if (readings.isEmpty) {
       return Container(
         width: double.infinity,
@@ -1715,7 +2185,11 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               const SizedBox(height: 8),
               Text(
                 _emptyChartLabel,
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1729,7 +2203,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       systolicSpots.add(FlSpot(i.toDouble(), readings[i].systolic));
       diastolicSpots.add(FlSpot(i.toDouble(), readings[i].diastolic));
     }
-
 
     return Container(
       width: double.infinity,
@@ -1746,8 +2219,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             spacing: 16,
             runSpacing: 6,
             children: [
-              _legendDot(BloodPressurePage.systolicColor, '收縮壓 (Systolic)'),
-              _legendDot(BloodPressurePage.diastolicColor, '舒張壓 (Diastolic)'),
+              _legendDot(BloodPressurePage.systolicColor, 'Systolic'),
+              _legendDot(BloodPressurePage.diastolicColor, 'Diastolic'),
             ],
           ),
           const SizedBox(height: 12),
@@ -1767,10 +2240,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
-                  topTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -1810,19 +2281,30 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => AppColors.surfaceMedium,
-                    getTooltipItems: (spots) => spots
-                        .map(
-                          (s) => LineTooltipItem(
-                            '${s.y.toInt()}',
-                            TextStyle(
-                              color: s.barIndex == 0
-                                  ? BloodPressurePage.systolicColor
-                                  : BloodPressurePage.diastolicColor,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    getTooltipItems: (spots) {
+                      if (spots.isEmpty) return [];
+                      final idx = spots.first.spotIndex;
+                      final reading = readings[idx];
+                      final hrText = reading.heartRate != null
+                          ? '\nHR: ${reading.heartRate!.toInt()} bpm'
+                          : '';
+
+                      return spots.map((s) {
+                        final isSys = s.barIndex == 0;
+                        return LineTooltipItem(
+                          isSys
+                              ? 'Sys: ${s.y.toInt()} mmHg$hrText'
+                              : 'Dia: ${s.y.toInt()} mmHg',
+                          TextStyle(
+                            color: isSys
+                                ? BloodPressurePage.systolicColor
+                                : BloodPressurePage.diastolicColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
                           ),
-                        )
-                        .toList(),
+                        );
+                      }).toList();
+                    },
                   ),
                 ),
                 lineBarsData: [
@@ -1917,15 +2399,12 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Daily stats
-  // ---------------------------------------------------------------------
   Widget _buildStatsSection() {
     return Row(
       children: [
         Expanded(
           child: _statCard(
-            title: '收縮壓',
+            title: 'Systolic',
             max: _maxSystolic,
             min: _minSystolic,
             avg: _avgSystolic,
@@ -1935,7 +2414,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         const SizedBox(width: 12),
         Expanded(
           child: _statCard(
-            title: '舒張壓',
+            title: 'Diastolic',
             max: _maxDiastolic,
             min: _minDiastolic,
             avg: _avgDiastolic,
@@ -1982,11 +2461,11 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             ],
           ),
           const SizedBox(height: 12),
-          _statRow('最高', max),
+          _statRow('Max', max),
           const SizedBox(height: 6),
-          _statRow('最低', min),
+          _statRow('Min', min),
           const SizedBox(height: 6),
-          _statRow('平均', avg),
+          _statRow('Average', avg),
         ],
       ),
     );
@@ -2016,9 +2495,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Measure now button
-  // ---------------------------------------------------------------------
   Widget _buildMeasureNowButton(BuildContext context) {
     return Row(
       children: [
@@ -2037,7 +2513,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               label: const FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  '手動輸入',
+                  'Manual Entry',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.bloodPressure),
                 ),
               ),
@@ -2062,7 +2538,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               label: const FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  '立即測量',
+                  'Measure Now',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
               ),

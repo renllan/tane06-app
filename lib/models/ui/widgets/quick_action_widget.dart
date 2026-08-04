@@ -56,65 +56,57 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
 
   static const List<QuickActionItem> _actionItems = [
     QuickActionItem(
-      type: QuickActionType.measureTemperature,
-      label: '測量體溫',
-      description: 'Body Temp',
-      icon: Icons.device_thermostat_rounded,
-      color: Color(0xFFFF9F0A),
-      bgColor: Color(0xFFFFF8E1),
-    ),
-    QuickActionItem(
       type: QuickActionType.measureHeartRate,
-      label: '測量心率',
-      description: 'Heart Rate',
+      label: 'Heart Rate',
+      description: 'Measure HR',
       icon: Icons.favorite_rounded,
       color: AppColors.heartRate,
       bgColor: Color(0xFFFFF0F0),
     ),
     QuickActionItem(
       type: QuickActionType.measureBloodPressure,
-      label: '測量血壓',
-      description: 'Blood Pressure',
+      label: 'Blood Pressure',
+      description: 'Measure BP',
       icon: Icons.monitor_heart_rounded,
       color: Color(0xFFF97316),
       bgColor: Color(0xFFFFF6EE),
     ),
     QuickActionItem(
       type: QuickActionType.measureSpo2,
-      label: '測量血氧',
-      description: 'Blood Oxygen',
+      label: 'Blood Oxygen',
+      description: 'Measure SpO₂',
       icon: Icons.water_drop_rounded,
       color: AppColors.bloodPressure,
       bgColor: Color(0xFFF0F2FF),
     ),
     QuickActionItem(
       type: QuickActionType.requestLocation,
-      label: '即時定位',
-      description: 'Locate Now',
+      label: 'Locate Now',
+      description: 'GPS Track',
       icon: Icons.my_location_rounded,
       color: Color(0xFF30D158),
       bgColor: Color(0xFFE8F5E9),
     ),
     QuickActionItem(
       type: QuickActionType.findDevice,
-      label: '尋找手錶',
-      description: 'Find Device',
+      label: 'Find Watch',
+      description: 'Ring Alarm',
       icon: Icons.notifications_active_rounded,
       color: Color(0xFF5E5CE6),
       bgColor: Color(0xFFF0F0FF),
     ),
     QuickActionItem(
       type: QuickActionType.restartDevice,
-      label: '重啟設備',
-      description: 'Reboot',
+      label: 'Reboot Watch',
+      description: 'Restart',
       icon: Icons.restart_alt_rounded,
       color: Color(0xFF64D2FF),
       bgColor: Color(0xFFEBF9FF),
     ),
     QuickActionItem(
       type: QuickActionType.powerOffDevice,
-      label: '遠端關機',
-      description: 'Power Off',
+      label: 'Power Off',
+      description: 'Shutdown',
       icon: Icons.power_settings_new_rounded,
       color: Color(0xFFFF453A),
       bgColor: Color(0xFFFFEBEA),
@@ -137,7 +129,7 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('目前為範例模式，觸發指令：${item.label}',
+          content: Text('Demo mode action: ${item.label}',
               style: GoogleFonts.dmSans(fontWeight: FontWeight.w600)),
           backgroundColor: AppColors.primary,
           duration: const Duration(seconds: 2),
@@ -156,26 +148,26 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
         case QuickActionType.measureTemperature:
           result = await _deviceRepository.requestMeasurement(
               imei: imei, type: 'body-temperature');
-          successMessage = '體溫量測指令已發送！數據正在同步...';
+          successMessage = 'Body temperature command sent!';
           break;
         case QuickActionType.measureHeartRate:
           result = await _deviceRepository.requestMeasurement(
               imei: imei, type: 'heart-rate');
-          successMessage = '心率量測指令已發送！';
+          successMessage = 'Heart rate measurement command sent!';
           break;
         case QuickActionType.measureBloodPressure:
           result = await _deviceRepository.requestMeasurement(
               imei: imei, type: 'blood-pressure');
-          successMessage = '血壓量測指令已發送！';
+          successMessage = 'Blood pressure measurement command sent!';
           break;
         case QuickActionType.measureSpo2:
           result = await _deviceRepository.requestMeasurement(
               imei: imei, type: 'blood-oxygen');
-          successMessage = '血氧量測指令已發送！';
+          successMessage = 'SpO₂ measurement command sent!';
           break;
         case QuickActionType.requestLocation:
           result = await _deviceRepository.requestLocation(imei: imei);
-          successMessage = '即時定位請求已發送！正在開啟地圖...';
+          successMessage = 'Location request sent! Opening map...';
           if (mounted) {
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -190,17 +182,17 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
         case QuickActionType.findDevice:
           result = await _deviceRepository.sendCommand(
               imei: imei, action: 'find');
-          successMessage = '已發送尋找手錶響鈴指令！';
+          successMessage = 'Find watch alarm command sent!';
           break;
         case QuickActionType.restartDevice:
           result = await _deviceRepository.sendCommand(
               imei: imei, action: 'restart');
-          successMessage = '已發送重啟設備指令！';
+          successMessage = 'Reboot command sent!';
           break;
         case QuickActionType.powerOffDevice:
           result = await _deviceRepository.sendCommand(
               imei: imei, action: 'power-off');
-          successMessage = '已發送關機指令！';
+          successMessage = 'Power off command sent!';
           break;
       }
 
@@ -210,7 +202,7 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
         final isSuccess = result['success'] == true;
         final msg = isSuccess
             ? (result['message'] as String? ?? successMessage)
-            : (result['message'] as String? ?? '${item.label} 指令執行失敗');
+            : (result['message'] as String? ?? 'Failed to execute ${item.label}');
 
         if (widget.onActionResult != null) {
           widget.onActionResult!(item.label, msg);
@@ -230,7 +222,7 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${item.label} 請求失敗: $e'),
+            content: Text('${item.label} request failed: $e'),
             backgroundColor: const Color(0xFFB00020),
             behavior: SnackBarBehavior.floating,
           ),
@@ -260,46 +252,45 @@ class _QuickActionWidgetState extends State<QuickActionWidget> {
             ),
             const SizedBox(width: 8),
             Text(
-              '快捷指令',
+              'Quick Actions',
               style: GoogleFonts.dmSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(width: 6),
-            Text(
-              'Quick Actions',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
-        // Circle buttons grid (2 rows of 4 items)
-        Column(
-          children: [
-            Row(
-              children: _actionItems.sublist(0, 4).map((item) {
-                final isLoading = _loadingMap[item.type] ?? false;
-                return Expanded(
-                  child: _buildCircleButton(item, isLoading),
+        // Dynamic items grid (rows of up to 4 items)
+        Builder(
+          builder: (context) {
+            final rows = <List<QuickActionItem>>[];
+            for (int i = 0; i < _actionItems.length; i += 4) {
+              final end = (i + 4 < _actionItems.length) ? i + 4 : _actionItems.length;
+              rows.add(_actionItems.sublist(i, end));
+            }
+
+            return Column(
+              children: rows.map((rowItems) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      ...rowItems.map((item) {
+                        final isLoading = _loadingMap[item.type] ?? false;
+                        return Expanded(
+                          child: _buildCircleButton(item, isLoading),
+                        );
+                      }),
+                      for (int k = 0; k < (4 - rowItems.length); k++)
+                        const Expanded(child: SizedBox()),
+                    ],
+                  ),
                 );
               }).toList(),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: _actionItems.sublist(4, 8).map((item) {
-                final isLoading = _loadingMap[item.type] ?? false;
-                return Expanded(
-                  child: _buildCircleButton(item, isLoading),
-                );
-              }).toList(),
-            ),
-          ],
+            );
+          },
         ),
       ],
     );

@@ -132,9 +132,9 @@ class _SleepDetailPageState extends State<SleepDetailPage> {
   }
 
   String _formatDayLabel(DateTime dt) {
-    if (_isTodaySelected) return '今天 (Today)';
-    if (_isYesterdaySelected) return '昨天 (Yesterday)';
-    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isTodaySelected) return 'Today';
+    if (_isYesterdaySelected) return 'Yesterday';
+    const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return weekdayNames[dt.weekday - 1];
   }
 
@@ -183,7 +183,7 @@ class _SleepDetailPageState extends State<SleepDetailPage> {
                 color: color,
               ),
             ),
-            tooltip: '前一天 (Previous Day)',
+            tooltip: 'Previous Day',
           ),
           GestureDetector(
             onTap: () async {
@@ -251,7 +251,7 @@ class _SleepDetailPageState extends State<SleepDetailPage> {
                 color: canGoNext ? color : Colors.grey,
               ),
             ),
-            tooltip: '後一天 (Next Day)',
+            tooltip: 'Next Day',
           ),
         ],
       ),

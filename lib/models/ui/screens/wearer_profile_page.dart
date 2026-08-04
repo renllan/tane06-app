@@ -133,7 +133,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('佩戴者個人資料已成功更新並同步至設備'),
+            content: Text('Wearer profile updated and synced to device'),
             backgroundColor: Color(0xFF2E7D32),
             behavior: SnackBarBehavior.floating,
           ),
@@ -151,7 +151,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _errorMessage = '儲存設定失敗：$e';
+          _errorMessage = 'Failed to save settings: $e';
         });
       }
     }
@@ -193,7 +193,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
-          '佩戴者個人資料 (Wearer Profile)',
+          'Wearer Profile',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
@@ -258,7 +258,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '身體資料與健康基準',
+                  'Body Metrics & Health Baseline',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -267,7 +267,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  '正確的身高、體重與年齡有助於提升卡路里、步程與心率演算法的精準度。',
+                  'Accurate height, weight, and age improve calorie and heart rate calculations.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -294,7 +294,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '生理性別 (Gender)',
+            'Gender',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -306,7 +306,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
             children: [
               Expanded(
                 child: _buildGenderTile(
-                  title: '男性 (Male)',
+                  title: 'Male',
                   icon: Icons.male_rounded,
                   isSelected: _gender,
                   activeColor: AppColors.primary,
@@ -316,7 +316,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildGenderTile(
-                  title: '女性 (Female)',
+                  title: 'Female',
                   icon: Icons.female_rounded,
                   isSelected: !_gender,
                   activeColor: const Color(0xFFE96B6B),
@@ -389,7 +389,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '出生日期 (Birthday)',
+                'Birthday',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -398,7 +398,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '目前設定: $_formattedBirthdayDisplay ($_calculatedAge 歲)',
+                'Current: $_formattedBirthdayDisplay ($_calculatedAge yrs)',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -416,7 +416,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
               ),
             ),
             icon: const Icon(Icons.calendar_month_rounded, size: 18),
-            label: const Text('選擇日期'),
+            label: const Text('Select Date'),
           ),
         ],
       ),
@@ -438,7 +438,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                '身高 (Height)',
+                'Height',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -494,7 +494,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                '體重 (Weight)',
+                'Weight',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -580,7 +580,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
               )
             : const Icon(Icons.save_rounded, size: 20),
         label: Text(
-          _isSaving ? '儲存同步中...' : '儲存資料 (Save Profile)',
+          _isSaving ? 'Saving...' : 'Save Profile',
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,

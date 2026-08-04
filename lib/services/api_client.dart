@@ -89,12 +89,12 @@ class TanE06ApiClient {
       try {
         body = jsonDecode(response.body) as Map<String, dynamic>?;
       } catch (_) {}
-      final errorMsg = body?['error']?['message'] ?? body?['message'] ?? '請求失敗';
+      final errorMsg = body?['error']?['message'] ?? body?['message'] ?? 'Request failed';
       throw ApiException(
         statusCode: response.statusCode,
         error: ApiError(
           code: 'Http${response.statusCode}',
-          message: '$errorMsg (HTTP 狀態碼: ${response.statusCode})',
+          message: '$errorMsg (HTTP Status: ${response.statusCode})',
         ),
       );
     }

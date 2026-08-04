@@ -12,6 +12,7 @@ import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
 
 import 'package:tane06_app/models/ui/screens/device_settings_page.dart';
 import 'package:tane06_app/models/ui/screens/temperature_detail_page.dart';
+import 'package:tane06_app/models/ui/screens/step_count_page.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
 import 'package:tane06_app/models/ui/widgets/quick_action_widget.dart';
@@ -52,14 +53,14 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   }
 
   String _formatDateTag(DateTime date) {
-    if (_isToday) return '今天 (Today)';
-    if (_isYesterday) return '昨天 (Yesterday)';
-    const days = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isToday) return 'Today';
+    if (_isYesterday) return 'Yesterday';
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days[date.weekday - 1];
   }
 
   String _formatFullDate(DateTime date) {
-    return '${date.year} 年 ${date.month} 月 ${date.day} 日';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   String _formatDateShort(DateTime date) {
@@ -93,33 +94,58 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         endTime: end,
       );
 
-      if (records.isNotEmpty) {
+      final scRecords = await _deviceRepository.fetchHealthData(
+        imei: imei,
+        type: 'SC',
+        startTime: start,
+        endTime: end,
+      );
+
+      final allRecords = [...records, ...scRecords];
+
+      if (allRecords.isNotEmpty) {
         int? lastHr;
         int? lastSpo2;
         String? lastBp;
         String? lastTemp;
-        int? maxSteps;
+        int totalSteps = 0;
+        bool hasScRecords = false;
 
-        for (final r in records) {
+        for (final r in allRecords) {
           final d = r.data;
-          if (d is Map) {
-            if (r.type == 'HR' || r.type == 'heart-rate') {
+          if (r.type == 'HR' || r.type == 'heart-rate') {
+            if (d is Map) {
               final v = d['heart_rate'] ?? d['hr'] ?? d['value'];
               if (v is num) lastHr = v.toInt();
-            } else if (r.type == 'BO' || r.type == 'blood-oxygen' || r.type == 'spo2') {
+            }
+          } else if (r.type == 'BO' || r.type == 'blood-oxygen' || r.type == 'spo2') {
+            if (d is Map) {
               final v = d['blood_oxygen'] ?? d['spo2'] ?? d['value'];
               if (v is num) lastSpo2 = v.toInt();
-            } else if (r.type == 'BP' || r.type == 'blood-pressure') {
+            }
+          } else if (r.type == 'BP' || r.type == 'blood-pressure') {
+            if (d is Map) {
               final sys = d['systolic'] ?? d['sys'] ?? d['high'];
               final dia = d['diastolic'] ?? d['dia'] ?? d['low'];
               if (sys != null && dia != null) lastBp = '$sys/$dia';
-            } else if (r.type == 'BT' || r.type == 'temperature') {
+            }
+          } else if (r.type == 'BT' || r.type == 'temperature') {
+            if (d is Map) {
               final v = d['temperature'] ?? d['bt'] ?? d['value'];
               if (v != null) lastTemp = v.toString();
-            } else if (r.type == 'SC' || r.type == 'steps') {
-              final v = d['steps'] ?? d['sc'] ?? d['value'];
-              if (v is num) maxSteps = math.max(maxSteps ?? 0, v.toInt());
             }
+          } else if (r.type == 'SC' || r.type == 'steps') {
+            hasScRecords = true;
+            int stepVal = 0;
+            if (d is Map) {
+              final v = d['steps'] ?? d['sc'] ?? d['value'];
+              stepVal = int.tryParse(v?.toString() ?? '0') ?? 0;
+            } else if (d is num) {
+              stepVal = d.toInt();
+            } else if (d is String) {
+              stepVal = int.tryParse(d) ?? 0;
+            }
+            totalSteps += stepVal;
           }
         }
 
@@ -129,7 +155,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
             _fetchedSpo2 = lastSpo2;
             _fetchedBp = lastBp;
             _fetchedTemp = lastTemp;
-            _fetchedSteps = maxSteps;
+            _fetchedSteps = hasScRecords ? totalSteps : null;
           });
         }
       } else {
@@ -189,9 +215,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   }
 
   int get _recordedSteps {
-    if (_fetchedSteps != null) return _fetchedSteps!;
-    if (_isToday) return 6543;
-    return 4200 + ((_selectedDate.day * 437) % 6800);
+    return _fetchedSteps ?? 0;
   }
 
   int get _recordedCalories => (_recordedSteps * 0.056).round();
@@ -215,7 +239,11 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       case 'blood-oxygen':
         return '$_recordedSpo2 %';
       case 'blood-pressure':
-        return '$_recordedBloodPressure mmHg';
+        return _recordedBloodPressure;
+      case 'temperature':
+        return '$_recordedBodyTemp °C';
+      case 'steps':
+        return '$_recordedSteps steps';
       case 'sleep':
         return _isToday ? '8h 58m' : '${6 + (_selectedDate.day % 3)}h ${15 + ((_selectedDate.day * 7) % 45)}m';
       default:
@@ -253,6 +281,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       curve: Curves.easeOutCubic,
     ));
     _entryController.forward();
+
+    _loadHealthDataForSelectedDate();
   }
 
   @override
@@ -267,8 +297,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
 
   bool get _isOnline => _currentDevice.isOnline;
   bool get _hasAlert =>
-      _currentDevice.statusLabel.contains('偏高') ||
-      _currentDevice.statusLabel.contains('異常');
+      _currentDevice.statusLabel.contains('High') ||
+      _currentDevice.statusLabel.contains('Alert') ||
+      _currentDevice.statusLabel.contains('Abnormal');
   bool get _isLowBattery => _currentDevice.batteryPercent < 20;
 
   Future<void> _refreshDeviceData() async {
@@ -317,11 +348,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         _buildSectionLabel('Vital Signs (${_formatDateShort(_selectedDate)})'),
                         const SizedBox(height: 14),
                         _buildVitalsGrid(),
-                        // SleepOverviewCard(
-                        //   imei: widget.device.imei,
-                        // ),
-                        // const SizedBox(height: 24),
-
                         QuickActionWidget(imei: widget.device.imei),
                         const SizedBox(height: 24),
                         _buildLocationMapPreviewCard(),
@@ -487,8 +513,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
+                            Flexible(
                               child: Text(
                                 _deviceName,
                                 style: GoogleFonts.dmSans(
@@ -501,6 +528,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                                 maxLines: 1,
                               ),
                             ),
+                            const SizedBox(width: 6),
                             GestureDetector(
                               onTap: () async {
                                 final imei = widget.device.imei ?? widget.device.id;
@@ -516,13 +544,13 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.18),
+                                  color: Colors.white.withOpacity(0.2),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
                                   Icons.edit_rounded,
                                   color: Colors.white,
-                                  size: 14,
+                                  size: 13,
                                 ),
                               ),
                             ),
@@ -771,7 +799,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                   child: const Icon(Icons.arrow_back_ios_new_rounded,
                       size: 16, color: AppColors.primary),
                 ),
-                tooltip: '前一天 (Previous Day)',
+                tooltip: 'Previous Day',
               ),
 
               GestureDetector(
@@ -804,7 +832,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '健康數據記錄日期: ${_formatDateTag(_selectedDate)}',
+                        'Health Data Date: ${_formatDateTag(_selectedDate)}',
                         style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -839,7 +867,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                       size: 16,
                       color: canGoNext ? AppColors.primary : Colors.grey),
                 ),
-                tooltip: '後一天 (Next Day)',
+                tooltip: 'Next Day',
               ),
             ],
           ),
@@ -863,7 +891,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         size: 14, color: AppColors.primary),
                     const SizedBox(width: 4),
                     Text(
-                      '回到今天 (Today)',
+                      'Today',
                       style: GoogleFonts.dmSans(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -1007,17 +1035,19 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         ),
       ),
       _VitalConfig(
-        icon: Icons.device_thermostat_rounded,
-        label: 'Body Temp',
-        value: _recordedBodyTemp,
-        unit: '°C',
-        color: const Color(0xFFFF9F0A),
-        bgColor: const Color(0xFFFFF8E1),
+        icon: Icons.directions_walk_rounded,
+        label: 'Step Count',
+        value: _recordedSteps.toString().replaceAllMapped(
+              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+              (m) => '${m[1]},',
+            ),
+        unit: 'steps',
+        color: AppColors.steps,
+        bgColor: const Color(0xFFEFF8FF),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => TemperatureDetailPage(
+            builder: (_) => StepCountPage(
               imei: widget.device.imei,
-              initialTemp: double.tryParse(_recordedBodyTemp) ?? 36.6,
             ),
           ),
         ),
@@ -1231,6 +1261,18 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                 builder: (_) => BloodPressurePage(
                   imei: widget.device.imei,
                 ),
+              ),
+            ),
+      ),
+      (
+        key: 'steps',
+        label: 'Step Analytics',
+        icon: Icons.directions_walk_rounded,
+        color: AppColors.steps,
+        bgColor: const Color(0xFFEFF8FF),
+        onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => StepCountPage(imei: widget.device.imei),
               ),
             ),
       ),
@@ -1548,7 +1590,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '設備即時定位地圖',
+                            'Device Live Location Map',
                             style: GoogleFonts.dmSans(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -1556,7 +1598,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                             ),
                           ),
                           Text(
-                            '點擊開啟地圖並查看最新 GPS 定位',
+                            'Tap to open map and view latest GPS location',
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
                               color: AppColors.textSecondary,
@@ -1574,7 +1616,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
                       child: Row(
                         children: [
                           Text(
-                            '查看完整地圖',
+                            'View Full Map',
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

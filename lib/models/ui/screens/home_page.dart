@@ -73,30 +73,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _devices = [
         Device(
           id: '1',
-          name: '父親的 TanE06',
-          owner: '父親',
+          name: "Father's TanE06",
+          owner: 'Father',
           batteryPercent: 20,
           heartRate: 88,
           spo2: 95,
-          statusLabel: '血壓偏高',
+          statusLabel: 'High BP',
         ),
         Device(
           id: '2',
-          name: '母親的 TanE06',
-          owner: '母親',
+          name: "Mother's TanE06",
+          owner: 'Mother',
           batteryPercent: 15,
           heartRate: 76,
           spo2: 97,
-          statusLabel: '低電量',
+          statusLabel: 'Low Battery',
         ),
         Device(
           id: '3',
-          name: '我的 TanE06',
-          owner: '我',
+          name: "My TanE06",
+          owner: 'Me',
           batteryPercent: 82,
           heartRate: 72,
           spo2: 98,
-          statusLabel: '狀態良好',
+          statusLabel: 'Normal',
         ),
       ];
       if (widget.userId != null) {
@@ -179,7 +179,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Icon(Icons.logout_rounded, color: Color(0xFFFF453A), size: 22),
             SizedBox(width: 8),
             Text(
-              '登出帳號',
+              'Log Out',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 17,
@@ -189,13 +189,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ],
         ),
         content: const Text(
-          '確定要登出帳號嗎？登出後需重新登入才能使用所有功能。',
+          'Are you sure you want to log out?',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消',
+            child: const Text('Cancel',
                 style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
@@ -206,7 +206,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
-            child: const Text('確認登出',
+            child: const Text('Log Out',
                 style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
@@ -264,7 +264,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        AuthTokenStore.instance.username ?? 'TanE-06 使用者',
+                        AuthTokenStore.instance.username ?? 'TanE-06 User',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -274,7 +274,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        userId != null ? 'User ID: $userId' : '未登入',
+                        userId != null ? 'User ID: $userId' : 'Not Logged In',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -292,14 +292,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // ── Device summary ───────────────────────────────────────────
           _profileInfoRow(
             icon: Icons.watch_rounded,
-            label: '綁定設備數量',
-            value: '${_devices.length} 個設備',
+            label: 'Bound Devices',
+            value: '${_devices.length} devices',
             color: AppColors.primary,
           ),
           const SizedBox(height: 12),
           _profileInfoRow(
             icon: Icons.devices_other_rounded,
-            label: '裝置型號',
+            label: 'Device Model',
             value: 'TanE-06',
             color: AppColors.primary,
           ),
@@ -314,7 +314,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               onPressed: _confirmLogout,
               icon: const Icon(Icons.logout_rounded, size: 20),
               label: const Text(
-                '登出帳號',
+                'Log Out',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
@@ -424,12 +424,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 8,
                   children: [
-                    const Text('我的設備',
+                    const Text('My Devices',
                         style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary)),
-                    Text('${_devices.length} 個設備',
+                    Text('${_devices.length} devices',
                         style: const TextStyle(color: AppColors.textSecondary)),
                   ],
                 ),
@@ -438,7 +438,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ElevatedButton.icon(
                 onPressed: _openAddDevicePage,
                 icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('新增設備',
+                label: const Text('Add Device',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -490,17 +490,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Icon(Icons.warning_amber_rounded, color: Color(0xFFFF453A), size: 22),
             SizedBox(width: 8),
-            Text('解除綁定設備', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+            Text('Unbind Device', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
           ],
         ),
         content: Text(
-          '確定要解除綁定「${d.name}」嗎？\n解除後將從您的帳號及裝置清單中移除該設備。',
+          'Are you sure you want to unbind "${d.name}"?\nThis will remove the device from your account.',
           style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -509,7 +509,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('確認解除綁定', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text('Confirm Unbind', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -530,48 +530,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已解除綁定「${d.name}」'),
+          content: Text('Unbound "${d.name}"'),
           backgroundColor: const Color(0xFF2E7D32),
         ),
       );
     }
   }
 
-  /// Converts an epoch-millisecond timestamp to a human-readable Chinese
-  /// relative-time string, e.g. "剛剛", "3 分鐘前", "2 小時前", "昨天", "5 天前".
-  /// Returns "尚無更新紀錄" when [epochMs] is null or zero.
+  /// Converts an epoch-millisecond timestamp to a human-readable relative-time string.
+  /// Returns "No updates yet" when [epochMs] is null or zero.
   String _formatRelativeTime(int? epochMs) {
-    if (epochMs == null || epochMs == 0) return '尚無更新紀錄';
+    if (epochMs == null || epochMs == 0) return 'No updates yet';
 
-    // Convert seconds → ms if needed (10-digit vs 13-digit)
     final ms = epochMs < 10000000000 ? epochMs * 1000 : epochMs;
     final dt = DateTime.fromMillisecondsSinceEpoch(ms);
     final diff = DateTime.now().difference(dt);
 
-    if (diff.isNegative || diff.inSeconds < 60) return '剛剛';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} 分鐘前';
-    if (diff.inHours < 24) return '${diff.inHours} 小時前';
-    if (diff.inDays == 1) return '昨天';
-    if (diff.inDays < 30) return '${diff.inDays} 天前';
-    return '${(diff.inDays / 30).floor()} 個月前';
+    if (diff.isNegative || diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 30) return '${diff.inDays}d ago';
+    return '${(diff.inDays / 30).floor()} mo ago';
   }
 
   Widget _buildDeviceCard(Device d) {
-    // choose background color per status
     Color bgColor = AppColors.surfaceLight;
     Color accent = AppColors.surfaceMedium;
     Widget? rightBadge;
 
-    if (d.statusLabel.contains('偏高') || d.statusLabel.contains('異常')) {
-      bgColor = const Color(0xFFFFEBEE); // light red
+    if (d.statusLabel.contains('High') || d.statusLabel.contains('Abnormal')) {
+      bgColor = const Color(0xFFFFEBEE);
       accent = const Color(0xFFFFCDD2);
       rightBadge = const Icon(Icons.error_outline, color: Color(0xFFB00020));
-    } else if (d.statusLabel.contains('低電量')) {
-      bgColor = const Color(0xFFFFF8E1); // light yellow
+    } else if (d.statusLabel.contains('Low')) {
+      bgColor = const Color(0xFFFFF8E1);
       accent = const Color(0xFFFFE5B4);
       rightBadge = const Icon(Icons.report_problem_rounded, color: Color(0xFFB08500));
-    } else if (d.statusLabel.contains('良好')) {
-      bgColor = const Color(0xFFE8F5E9); // light green
+    } else if (d.statusLabel.contains('Normal')) {
+      bgColor = const Color(0xFFE8F5E9);
       accent = const Color(0xFFD7F0DD);
       rightBadge = const Icon(Icons.check_circle_outline, color: Color(0xFF2E7D32));
     }
@@ -631,7 +628,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 children: [
                                   Icon(Icons.link_off_rounded, color: Color(0xFFFF453A), size: 18),
                                   SizedBox(width: 8),
-                                  Text('解除綁定 (Unbind)', style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w600)),
+                                  Text('Unbind Device', style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w600)),
                                 ],
                               ),
                             ),
@@ -658,7 +655,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Flexible(
                           child: GestureDetector(
                             onTap: () {
-                              if (d.statusLabel.contains('血壓')) {
+                              if (d.statusLabel.toLowerCase().contains('bp')) {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => BloodPressurePage(
@@ -691,15 +688,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _vitalItem(Icons.favorite, '心率', '${d.heartRate} bpm', AppColors.heartRate),
-                _vitalItem(Icons.water_drop_rounded, '血氧', '${d.spo2} %', AppColors.bloodPressure),
+                _vitalItem(Icons.favorite, 'Heart Rate', '${d.heartRate} bpm', AppColors.heartRate),
+                _vitalItem(Icons.water_drop_rounded, 'SpO₂', '${d.spo2} %', AppColors.bloodPressure),
                 _vitalItem(
                   d.batteryPercent >= 80
                       ? Icons.battery_full_rounded
                       : (d.batteryPercent >= 30
                           ? Icons.battery_5_bar_rounded
                           : Icons.battery_alert_rounded),
-                  '電量',
+                  'Battery',
                   '${d.batteryPercent}%',
                   d.batteryPercent <= 20
                       ? const Color(0xFFFF453A)
@@ -713,7 +710,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               children: [
                 Expanded(
                   child: Text(
-                    '最後更新：${_formatRelativeTime(d.updatedAt)}',
+                    'Updated: ${_formatRelativeTime(d.updatedAt)}',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -825,7 +822,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 onPressed: _openAddDevicePage,
-                tooltip: '新增設備 (Add Device)',
+                tooltip: 'Add Device',
               ),
             ],
           ),

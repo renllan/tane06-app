@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:tane06_app/services/auth_token_store.dart';
 import '../models/location_history_response.dart';
 
-/// Calls the "查詢設備定位歷史" (device location history) endpoint.
+/// Calls the device location history endpoint.
 ///
 /// GET /devices/{imei}/locations/history
 class LocationService {

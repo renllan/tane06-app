@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:tane06_app/models/ui/screens/login_page.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(

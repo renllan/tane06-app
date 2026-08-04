@@ -6,6 +6,7 @@ import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/models/device.dart';
 import 'package:tane06_app/models/health_data_record.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
+import 'package:tane06_app/models/ui/screens/step_count_page.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data helpers
@@ -153,16 +154,6 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
       bgColor: const Color(0xFFEFF8FF),
       unit: 'steps',
       valueExtractor: _stepsExtractor,
-    ),
-    _MetricConfig(
-      title: 'Temperature',
-      apiType: 'BT',
-      fallbacks: ['bt', 'temperature', 'body-temp'],
-      icon: Icons.thermostat_rounded,
-      color: const Color(0xFF10B981),
-      bgColor: const Color(0xFFEFFBF5),
-      unit: '°C',
-      valueExtractor: _tempExtractor,
     ),
   ];
 
@@ -392,9 +383,9 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
   }
 
   String _formatDayLabel(DateTime dt) {
-    if (_isTodaySelected) return '今天 (Today)';
-    if (_isYesterdaySelected) return '昨天 (Yesterday)';
-    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isTodaySelected) return 'Today';
+    if (_isYesterdaySelected) return 'Yesterday';
+    const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return weekdayNames[dt.weekday - 1];
   }
 
@@ -444,7 +435,7 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
                 color: color,
               ),
             ),
-            tooltip: '前一天 (Previous Day)',
+            tooltip: 'Previous Day',
           ),
           GestureDetector(
             onTap: () async {
@@ -514,7 +505,7 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
                 color: canGoNext ? color : Colors.grey,
               ),
             ),
-            tooltip: '後一天 (Next Day)',
+            tooltip: 'Next Day',
           ),
         ],
       ),
@@ -723,6 +714,39 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
                 _statPill('Max', _fmtVal(max, cfg), cfg),
               ],
             ),
+          if (cfg.apiType == 'SC') ...[
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => StepCountPage(imei: widget.device.imei),
+                ),
+              ),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.bar_chart_rounded, color: AppColors.steps, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      'View 24-Hour Hourly SC Analytics',
+                      style: GoogleFonts.dmSans(
+                        color: AppColors.steps,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

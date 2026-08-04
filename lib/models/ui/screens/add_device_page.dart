@@ -158,36 +158,18 @@ class _AddDevicePageState extends State<AddDevicePage> {
 
 
     } else {
-
       setState(() {
-
-        _errorMessage =
-            "無法解析 QR Code";
-
+        _errorMessage = "Failed to parse QR Code";
       });
-
     }
-
   }
 
-
-
   Future<void> _bindDevice() async {
-
-
-    final imei =
-        _imeiController.text.trim();
-
-
+    final imei = _imeiController.text.trim();
     if (imei.isEmpty) {
-
       setState(() {
-
-        _errorMessage =
-            "請輸入 IMEI";
-
+        _errorMessage = "Please enter IMEI";
       });
-
       return;
     }
 
@@ -271,44 +253,17 @@ class _AddDevicePageState extends State<AddDevicePage> {
       builder: (_) {
 
         return AlertDialog(
-
-          title:
-              const Text(
-                "綁定成功",
-              ),
-
-
-          content:
-              Text(
-                "${device.name}\n${device.imei}",
-              ),
-
-
+          title: const Text("Device Paired Successfully"),
+          content: Text("${device.name}\n${device.imei}"),
           actions: [
-
             TextButton(
-
               onPressed: () {
-
                 Navigator.pop(context);
-
-                Navigator.pop(
-                  context,
-                  device,
-                );
-
+                Navigator.pop(context, device);
               },
-
-
-              child:
-                  const Text(
-                    "完成",
-                  ),
-
+              child: const Text("Done"),
             ),
-
           ],
-
         );
 
       },
@@ -328,20 +283,10 @@ class _AddDevicePageState extends State<AddDevicePage> {
 
 
     return Scaffold(
-
-      backgroundColor:
-          const Color(0xffF4F6FA),
-
-
-      appBar:
-          AppBar(
-
-            title:
-                const Text(
-                  "新增綁定設備",
-                ),
-
-          ),
+      backgroundColor: const Color(0xffF4F6FA),
+      appBar: AppBar(
+        title: const Text("Add New Device"),
+      ),
 
 
 
@@ -418,16 +363,9 @@ class _AddDevicePageState extends State<AddDevicePage> {
                                 : _bindDevice,
 
 
-                            child:
-                                Text(
-
-                                  _isBinding
-                                  ?
-                                  "綁定中..."
-                                  :
-                                  "確認綁定",
-
-                                ),
+                            child: Text(
+                              _isBinding ? "Pairing..." : "Confirm Pair",
+                            ),
 
                           ),
 
@@ -541,7 +479,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('已成功從相片讀取 QR Code！'),
+                content: Text('QR Code successfully scanned from photo!'),
                 backgroundColor: Color(0xFF2E7D32),
               ),
             );
@@ -551,13 +489,13 @@ class _AddDevicePageState extends State<AddDevicePage> {
       }
       if (mounted) {
         setState(() {
-          _errorMessage = '相片中未發現有效的 QR Code，請重新選擇圖片';
+          _errorMessage = 'No valid QR Code found in photo';
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = '讀取相片失敗：$e';
+          _errorMessage = 'Failed to read photo: $e';
         });
       }
     }
@@ -620,7 +558,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
           ),
           icon: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
           label: const Text(
-            '從相片/檔案讀取 QR Code',
+            'Scan QR Code from Photo',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -632,7 +570,7 @@ class _AddDevicePageState extends State<AddDevicePage> {
           Padding(
             padding: const EdgeInsets.only(top: 15),
             child: Text(
-              "已掃描 $_scannedImei",
+              "Scanned: $_scannedImei",
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF2E7D32),
@@ -676,36 +614,16 @@ class _AddDevicePageState extends State<AddDevicePage> {
 
 
         TextField(
-
-          controller:
-              _nameController,
-
-
-          decoration:
-              const InputDecoration(
-
-                labelText:
-                    "名稱",
-
-              ),
-
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: "Device Name",
+          ),
         ),
-
-
         TextField(
-
-          controller:
-              _modelController,
-
-
-          decoration:
-              const InputDecoration(
-
-                labelText:
-                    "型號",
-
-              ),
-
+          controller: _modelController,
+          decoration: const InputDecoration(
+            labelText: "Device Model",
+          ),
         )
 
 

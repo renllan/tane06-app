@@ -103,10 +103,10 @@ class Device {
     final spo2 = parseNum(json['spo2'] ?? json['bo'] ?? json['blood_oxygen'] ?? json['bloodOxygen']);
 
     final isOnline = (json['is_online'] == true) || (json['online'] == true) || (json['status'] == 'online') || (json['status'] == 1);
-    final statusLabelStr = (json['status_label'] ?? json['status_text'] ?? (isOnline ? '連線中' : '離線')).toString();
+    final statusLabelStr = (json['status_label'] ?? json['status_text'] ?? (isOnline ? 'Online' : 'Offline')).toString();
 
     final rawName = (json['name'] ?? json['device_name'] ?? json['alias'] ?? json['remark'] ?? '').toString();
-    final watchName = rawName.isNotEmpty ? rawName : 'TanE06 錶盤';
+    final watchName = rawName.isNotEmpty ? rawName : 'TanE06 Watch';
     final rawOwner = (json['owner'] ?? json['owner_name'] ?? json['user_name'] ?? '').toString();
     final ownerStr = rawOwner.isNotEmpty ? rawOwner : watchName;
 

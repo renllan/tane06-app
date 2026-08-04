@@ -63,8 +63,8 @@ class DeviceProfile {
     };
   }
 
-  /// Gender label string in Traditional Chinese.
-  String get genderLabel => gender ? '男' : '女';
+  /// Gender label string.
+  String get genderLabel => gender ? 'Male' : 'Female';
 
   /// Helper to calculate age based on YYYYMMDD birthday.
   int get age {

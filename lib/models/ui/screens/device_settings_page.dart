@@ -55,7 +55,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = '無法載入設備設定：$e';
+          _errorMessage = 'Failed to load device settings: $e';
           _isLoading = false;
         });
       }
@@ -67,19 +67,19 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
       await _repo.saveSettings(imei: widget.imei, patch: patch);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('設定已儲存並同步至設備')),
+          const SnackBar(content: Text('Settings saved and synced to device')),
         );
       }
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('儲存失敗：${e.error.message}')),
+          SnackBar(content: Text('Save failed: ${e.error.message}')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('儲存失敗：$e')),
+          SnackBar(content: Text('Save failed: $e')),
         );
       }
     }
@@ -94,7 +94,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
-          '設備設定',
+          'Device Settings',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
@@ -104,7 +104,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           if (!_isLoading && _settings != null)
             IconButton(
               icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
-              tooltip: '重新載入設定',
+              tooltip: 'Reload Settings',
               onPressed: _loadSettings,
             ),
         ],
@@ -122,8 +122,9 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             CircularProgressIndicator(color: AppColors.primary),
             SizedBox(height: 16),
-            Text(
-              '正在從伺服器載入設備設定...',
+            const SizedBox(height: 16),
+            const Text(
+              'Loading device settings from server...',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
           ],
@@ -154,7 +155,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                   foregroundColor: Colors.white,
                 ),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('重新嘗試'),
+                label: const Text('Retry'),
               ),
             ],
           ),
@@ -175,7 +176,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
             _buildDeviceHeader(),
             const SizedBox(height: 24),
             const Text(
-              '設定分類',
+              'Settings Categories',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -207,7 +208,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '危險區域 (Danger Zone)',
+            'Danger Zone',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -216,7 +217,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           ),
           const SizedBox(height: 4),
           const Text(
-            '解除綁定後，該設備將從您的帳號清單中移除，若要重新使用需再次掃描或輸入 IMEI 綁定。',
+            'Unbinding this device will remove it from your account list. You will need to scan or enter the IMEI again to pair it.',
             style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
@@ -238,7 +239,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
               ),
               icon: const Icon(Icons.link_off_rounded, size: 18),
               label: const Text(
-                '解除綁定此設備 (Unbind Device)',
+                'Unbind Device',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -260,17 +261,17 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             Icon(Icons.warning_amber_rounded, color: Color(0xFFB00020), size: 22),
             SizedBox(width: 8),
-            Text('解除綁定設備', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+            Text('Unbind Device', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
           ],
         ),
         content: Text(
-          '確定要解除綁定 IMEI: ${widget.imei} 嗎？\n此操作將會從您的帳號及裝置清單中移除該設備。',
+          'Are you sure you want to unbind IMEI: ${widget.imei}?\nThis will remove the device from your account.',
           style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -279,7 +280,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('確認解除綁定', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text('Confirm Unbind', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -294,7 +295,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已成功解除綁定設備 (${widget.imei})'),
+          content: Text('Successfully unbound device (${widget.imei})'),
           backgroundColor: const Color(0xFF2E7D32),
         ),
       );
@@ -327,7 +328,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'TanE06 智慧手錶',
+                  'TanE06 Smart Watch',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -357,7 +358,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                 Icon(Icons.circle, size: 8, color: Color(0xFF2E7D32)),
                 SizedBox(width: 6),
                 Text(
-                  '連線中',
+                  'Connected',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -385,75 +386,75 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
     final categories = [
       {
         'key': SettingsCategory.profile,
-        'title': '個人資料與體態 (User Profile)',
-        'subtitle': '年齡、性別、身高、體重設定與計算基礎',
+        'title': 'User Profile',
+        'subtitle': 'Age, Sex, Height, Weight settings',
         'icon': Icons.person_rounded,
         'iconColor': const Color(0xFF5E5CE6),
-        'badge': '$age歲 • ${height}cm',
+        'badge': '${age}yrs • ${height}cm',
       },
       {
         'key': SettingsCategory.health,
-        'title': '健康監測設定',
-        'subtitle': '心率、血壓、血氧、體溫監測與警示',
+        'title': 'Health Monitoring',
+        'subtitle': 'Heart rate, blood pressure, SpO₂, temperature alerts',
         'icon': Icons.favorite_rounded,
         'iconColor': const Color(0xFFE96B6B),
-        'badge': '4 項監測中',
+        'badge': '4 Active',
       },
       {
         'key': SettingsCategory.step,
-        'title': '計步與運動目標',
-        'subtitle': '每日步數 6,000 步 • 運動時間 30 分鐘',
+        'title': 'Fitness & Step Goals',
+        'subtitle': 'Daily step target & active minutes',
         'icon': Icons.directions_run_rounded,
         'iconColor': const Color(0xFF4BA3C7),
-        'badge': '目標設定',
+        'badge': 'Goals',
       },
       {
         'key': SettingsCategory.sleep,
-        'title': '睡眠監測設定',
-        'subtitle': '睡眠時段 22:00 - 07:00 • 目標 8 小時',
+        'title': 'Sleep Tracking',
+        'subtitle': 'Sleep schedule & target duration',
         'icon': Icons.bedtime_rounded,
         'iconColor': const Color(0xFF4CBF87),
-        'badge': '已啟用',
+        'badge': 'Enabled',
       },
       {
         'key': SettingsCategory.safety,
-        'title': '安全防護與 SOS',
-        'subtitle': 'SOS 一鍵求救、跌倒偵測警示',
+        'title': 'Safety & SOS',
+        'subtitle': 'One-touch SOS and fall detection alerts',
         'icon': Icons.shield_rounded,
         'iconColor': const Color(0xFFFF9500),
-        'badge': 'SOS 輪播 3次',
+        'badge': 'SOS Active',
       },
       {
         'key': SettingsCategory.call,
-        'title': '通話與訊息設定',
-        'subtitle': '自動接聽、簡訊通知、白名單過濾',
+        'title': 'Calls & Messages',
+        'subtitle': 'Auto-answer, SMS notifications, whitelist filter',
         'icon': Icons.phone_in_talk_rounded,
         'iconColor': const Color(0xFF5E5CE6),
-        'badge': '通話防護',
+        'badge': 'Protection',
       },
       {
         'key': SettingsCategory.location,
-        'title': '定位與同步頻率',
-        'subtitle': 'GPS/LBS 定位更新頻率設定',
+        'title': 'Location & Sync',
+        'subtitle': 'GPS/LBS location update frequency',
         'icon': Icons.location_on_rounded,
         'iconColor': const Color(0xFF30D158),
-        'badge': '1440 分鐘/次',
+        'badge': 'Sync',
       },
       {
         'key': SettingsCategory.watch,
-        'title': '手錶系統與硬體設定',
-        'subtitle': '音量、抬手亮屏、省電模式、密碼與語言',
+        'title': 'Watch System & Hardware',
+        'subtitle': 'Volume, wrist wake, power save, passcode',
         'icon': Icons.tune_rounded,
         'iconColor': const Color(0xFF6C7FEA),
-        'badge': '系統 51% 音量',
+        'badge': 'System',
       },
       {
         'key': SettingsCategory.remoteCommands,
-        'title': '遠端指令與控制',
-        'subtitle': '尋找手錶、遠端關機、重新啟動、恢復出廠設定',
+        'title': 'Remote Commands',
+        'subtitle': 'Find watch, remote power off, restart, reset',
         'icon': Icons.settings_remote_rounded,
         'iconColor': const Color(0xFFEF5350),
-        'badge': '4 項指令',
+        'badge': '4 Commands',
       },
     ];
 

@@ -140,7 +140,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '模擬模式：發送體溫量測指令成功 (36.7 °C)',
+            'Demo Mode: Temperature measurement command sent (36.7 °C)',
             style: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
           ),
           backgroundColor: const Color(0xFF2E6D5D),
@@ -163,8 +163,8 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
       final isSuccess = res['success'] == true;
       final serverMsg = res['message'] as String?;
       final msg = isSuccess
-          ? (serverMsg ?? '已成功發送體溫量測指令！正在同步最新體溫...')
-          : (serverMsg ?? '發送量測指令失敗');
+          ? (serverMsg ?? 'Temperature measurement command sent! Syncing...')
+          : (serverMsg ?? 'Measurement failed');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -184,7 +184,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('體溫量測請求失敗: $e'),
+          content: Text('Temperature request failed: $e'),
           backgroundColor: const Color(0xFFB00020),
         ),
       );
@@ -216,13 +216,13 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
   String get _statusLabel {
     switch (_status) {
       case TemperatureStatus.hypothermia:
-        return '體溫過低 (Hypothermia)';
+        return 'Hypothermia';
       case TemperatureStatus.normal:
-        return '體溫正常 (Normal)';
+        return 'Normal';
       case TemperatureStatus.elevated:
-        return '體溫偏高 (Elevated)';
+        return 'Elevated';
       case TemperatureStatus.fever:
-        return '發燒警示 (Fever)';
+        return 'Fever Warning';
     }
   }
 
@@ -382,7 +382,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '體溫監測 (Body Temp)',
+                      'Body Temp',
                       style: GoogleFonts.dmSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -390,7 +390,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                       ),
                     ),
                     Text(
-                      '最後讀數: $_lastMeasuredStr',
+                      'Last: $_lastMeasuredStr',
                       style: GoogleFonts.dmSans(
                         fontSize: 11,
                         color: AppColors.textTertiary,
@@ -412,7 +412,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                     border: Border.all(color: AppColors.textTertiary.withOpacity(0.2)),
                   ),
                   child: Text(
-                    _isFahrenheit ? '切換 °C' : '切換 °F',
+                    _isFahrenheit ? 'To °C' : 'To °F',
                     style: GoogleFonts.dmSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -447,7 +447,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                         Icon(Icons.bolt_rounded, size: 14, color: _statusColor),
                       const SizedBox(width: 4),
                       Text(
-                        _isMeasuring ? '測量中' : '即時測量',
+                        _isMeasuring ? 'Testing' : 'Live Test',
                         style: GoogleFonts.dmSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -539,13 +539,13 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('35.0 °C (過低)',
+                  Text('35.0 °C (Low)',
                       style: GoogleFonts.dmSans(
                           fontSize: 10, color: AppColors.textTertiary)),
-                  Text('36.5-37.3 °C (標準)',
+                  Text('36.5-37.3 °C (Normal)',
                       style: GoogleFonts.dmSans(
                           fontSize: 10, color: AppColors.textTertiary)),
-                  Text('38.0+ °C (發燒)',
+                  Text('38.0+ °C (Fever)',
                       style: GoogleFonts.dmSans(
                           fontSize: 10, color: AppColors.textTertiary)),
                 ],
@@ -576,7 +576,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                       color: _statusColor, size: 24),
                   const SizedBox(width: 10),
                   Text(
-                    '體溫量測與 API 連線',
+                    'Body Temp Measurement',
                     style: GoogleFonts.dmSans(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -587,7 +587,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
               ),
               const SizedBox(height: 16),
               Text(
-                '最新即時體溫為 ${_currentTempCelsius.toStringAsFixed(1)} °C。點擊下方按鈕可向 TanE06 設備發送 /measurements/body-temperature API 觸發即時量測。',
+                'Latest temperature is ${_currentTempCelsius.toStringAsFixed(1)} °C. Tap below to trigger a live measurement request.',
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -605,7 +605,7 @@ class _TemperatureWidgetState extends State<TemperatureWidget>
                   },
                   icon: const Icon(Icons.bolt_rounded, color: Colors.white),
                   label: Text(
-                    '立即向設備請求體溫量測',
+                    'Request Temp Measurement',
                     style: GoogleFonts.dmSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,

@@ -5,6 +5,7 @@ import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/health_data_record.dart';
 import 'package:tane06_app/repositories/device_repository.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
+import 'package:tane06_app/models/ui/screens/step_count_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/models/ui/widgets/sparkline_painter.dart';
 import 'package:tane06_app/theme/app_theme.dart';
@@ -170,7 +171,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已發送測量指令，5 秒後自動刷新...', style: GoogleFonts.dmSans()),
+            content: Text('Measurement command sent. Refreshing in 5 seconds...', style: GoogleFonts.dmSans()),
             backgroundColor: AppColors.primary,
           ),
         );
@@ -184,7 +185,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('發送測量指令失敗: $e', style: GoogleFonts.dmSans()),
+            content: Text('Measurement failed: $e', style: GoogleFonts.dmSans()),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -213,9 +214,9 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
   }
 
   String _formatDayLabel(DateTime dt) {
-    if (_isTodaySelected) return '今天 (Today)';
-    if (_isYesterdaySelected) return '昨天 (Yesterday)';
-    const weekdayNames = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+    if (_isTodaySelected) return 'Today';
+    if (_isYesterdaySelected) return 'Yesterday';
+    const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return weekdayNames[dt.weekday - 1];
   }
 
@@ -265,7 +266,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                 color: widget.metric.color,
               ),
             ),
-            tooltip: '前一天 (Previous Day)',
+            tooltip: 'Previous Day',
           ),
           GestureDetector(
             onTap: () async {
@@ -335,7 +336,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                 color: canGoNext ? widget.metric.color : Colors.grey,
               ),
             ),
-            tooltip: '後一天 (Next Day)',
+            tooltip: 'Next Day',
           ),
         ],
       ),
@@ -485,7 +486,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                               ),
                               if (_latestApiValue != null)
                                 Text(
-                                  '已從設備 API 即時同步',
+                                  'Synced live from device API',
                                   style: GoogleFonts.dmSans(
                                     fontSize: 11,
                                     color: AppColors.primary,
@@ -666,7 +667,7 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                           )
                         : const Icon(Icons.sensors_rounded),
                     label: Text(
-                      _isMeasuring ? '正在發送測量指令...' : '立即發送測量指令 (Live)',
+                      _isMeasuring ? 'Sending command...' : 'Send Live Measurement',
                       style: GoogleFonts.dmSans(
                           fontSize: 15, fontWeight: FontWeight.w700),
                     ),
@@ -700,7 +701,42 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
                     ),
                     icon: const Icon(Icons.analytics_rounded),
                     label: Text(
-                      '查看完整血壓分析與歷史趨勢',
+                      'View BP Analysis & History',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
+
+              if (metric.type == MetricType.steps ||
+                  metric.label.toUpperCase() == 'STEPS' ||
+                  metric.label.toUpperCase() == 'STEP COUNT') ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => StepCountPage(
+                            imei: widget.imei,
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.steps,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.directions_walk_rounded),
+                    label: Text(
+                      'View Hourly SC Step Analytics',
                       style: GoogleFonts.dmSans(
                           fontSize: 15, fontWeight: FontWeight.w700),
                     ),
@@ -891,35 +927,35 @@ class _MetricDetailPageState extends State<MetricDetailPage> {
 
     final zones = [
       (
-        name: 'Peak (發揮 / 極限)',
+        name: 'Peak (93%-100%)',
         range: '$peakMin - $peakMax bpm',
         pct: peakPct,
         timeStr: formatZoneTime(peakCount),
         color: const Color(0xFFE96B6B),
       ),
       (
-        name: 'Vigorous (重度 / 無氧)',
+        name: 'Vigorous (77%-92%)',
         range: '$vigMin - $vigMax bpm',
         pct: vigPct,
         timeStr: formatZoneTime(vigCount),
         color: const Color(0xFFFFA24D),
       ),
       (
-        name: 'Moderate (中度 / 有氧)',
+        name: 'Moderate (64%-76%)',
         range: '$modMin - $modMax bpm',
         pct: modPct,
         timeStr: formatZoneTime(modCount),
         color: const Color(0xFF4CBF87),
       ),
       (
-        name: 'Light (輕度 / 暖身)',
+        name: 'Light (50%-63%)',
         range: '$lightMin - $lightMax bpm',
         pct: lightPct,
         timeStr: formatZoneTime(lightCount),
         color: const Color(0xFF5BB8F5),
       ),
       (
-        name: 'Resting (靜息 / 恢復)',
+        name: 'Resting (<50%)',
         range: '< $lightMin bpm',
         pct: restPct,
         timeStr: formatZoneTime(restCount),

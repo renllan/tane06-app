@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tane06_app/models/health_metric.dart';
 import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/blood_pressure_page.dart';
+import 'package:tane06_app/models/ui/screens/step_count_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/theme/app_theme.dart';
 import 'package:tane06_app/models/ui/widgets/sparkline_painter.dart';
@@ -126,10 +127,20 @@ class _MetricCardState extends State<MetricCard>
                           ),
                         ),
                       );
+                    } else if (widget.metric.type == MetricType.steps ||
+                        widget.metric.label.toUpperCase() == 'STEPS' ||
+                        widget.metric.label.toUpperCase() == 'STEP COUNT') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => StepCountPage(
+                            imei: widget.imei,
+                          ),
+                        ),
+                      );
                     } else {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => MetricDetailPage(metric: widget.metric),
+                          builder: (_) => MetricDetailPage(metric: widget.metric, imei: widget.imei),
                         ),
                       );
                     }
