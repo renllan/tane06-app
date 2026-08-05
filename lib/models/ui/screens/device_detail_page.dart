@@ -71,6 +71,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
   int? _fetchedHr;
   int? _fetchedSpo2;
   String? _fetchedBp;
+  int? _fetchedBpHr;
   String? _fetchedTemp;
   int? _fetchedSteps;
 
@@ -107,6 +108,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         int? lastHr;
         int? lastSpo2;
         String? lastBp;
+        int? lastBpHr;
         String? lastTemp;
         int totalSteps = 0;
         bool hasScRecords = false;
@@ -127,7 +129,13 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
             if (d is Map) {
               final sys = d['systolic'] ?? d['sys'] ?? d['high'];
               final dia = d['diastolic'] ?? d['dia'] ?? d['low'];
-              if (sys != null && dia != null) lastBp = '$sys/$dia';
+              if (sys != null && dia != null) {
+                lastBp = '$sys/$dia';
+                final hrVal = d['heart_rate'] ?? d['heartRate'] ?? d['hr'] ?? d['pulse'] ?? d['bpm'] ?? d['rate'] ?? d['pulse_rate'] ?? d['pulseRate'];
+                if (hrVal != null) {
+                  lastBpHr = int.tryParse(hrVal.toString()) ?? double.tryParse(hrVal.toString())?.toInt();
+                }
+              }
             }
           } else if (r.type == 'BT' || r.type == 'temperature') {
             if (d is Map) {
@@ -149,11 +157,41 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
           }
         }
 
+        if (lastBp != null && lastBpHr == null) {
+          int? bpTimestamp;
+          for (final r in allRecords) {
+            if (r.type == 'BP' || r.type == 'blood-pressure') {
+              bpTimestamp = r.timestamp;
+              break;
+            }
+          }
+          if (bpTimestamp != null) {
+            int minDiff = 180000;
+            for (final r in allRecords) {
+              if (r.type == 'HR' || r.type == 'heart-rate') {
+                final diff = (r.timestamp - bpTimestamp).abs();
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  final hrVal = r.data is Map
+                      ? (r.data['heart_rate'] ?? r.data['hr'] ?? r.data['value'] ?? r.data['heartRate'])
+                      : r.data;
+                  if (hrVal is num) {
+                    lastBpHr = hrVal.toInt();
+                  } else if (hrVal is String) {
+                    lastBpHr = int.tryParse(hrVal) ?? double.tryParse(hrVal)?.toInt();
+                  }
+                }
+              }
+            }
+          }
+        }
+
         if (mounted) {
           setState(() {
             _fetchedHr = lastHr;
             _fetchedSpo2 = lastSpo2;
             _fetchedBp = lastBp;
+            _fetchedBpHr = lastBpHr;
             _fetchedTemp = lastTemp;
             _fetchedSteps = hasScRecords ? totalSteps : null;
           });
@@ -164,6 +202,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
             _fetchedHr = null;
             _fetchedSpo2 = null;
             _fetchedBp = null;
+            _fetchedBpHr = null;
             _fetchedTemp = null;
             _fetchedSteps = null;
           });
@@ -181,6 +220,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
       _fetchedHr = null;
       _fetchedSpo2 = null;
       _fetchedBp = null;
+      _fetchedBpHr = null;
       _fetchedTemp = null;
       _fetchedSteps = null;
     });
@@ -205,6 +245,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
     final sys = 116 + ((_selectedDate.day * 3) % 14);
     final dia = 74 + ((_selectedDate.day * 2) % 10);
     return '$sys/$dia';
+  }
+
+  int? get _recordedBpHr {
+    if (_fetchedBp != null) return _fetchedBpHr;
+    if (_isToday) return widget.device.heartRate > 0 ? widget.device.heartRate : 72;
+    return 66 + ((_selectedDate.day * 5) % 20);
   }
 
   String get _recordedBodyTemp {
@@ -1023,7 +1069,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage>
         icon: Icons.monitor_heart_rounded,
         label: 'Blood Pressure',
         value: _recordedBloodPressure,
-        unit: 'mmHg',
+        unit: _recordedBpHr != null ? 'mmHg • $_recordedBpHr bpm' : 'mmHg',
         color: const Color(0xFFF97316),
         bgColor: const Color(0xFFFFF6EE),
         onTap: () => Navigator.of(context).push(

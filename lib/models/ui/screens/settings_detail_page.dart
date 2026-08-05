@@ -41,11 +41,59 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     _data = Map<String, dynamic>.from(widget.settingsData);
   }
 
+  bool _areMapsEqual(dynamic a, dynamic b) {
+    if (a == b) return true;
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final key in a.keys) {
+        if (!b.containsKey(key)) return false;
+        if (!_areMapsEqual(a[key], b[key])) return false;
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (int i = 0; i < a.length; i++) {
+        if (!_areMapsEqual(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _saveAndPop() async {
     final imeiToUse = widget.imei;
 
-    // Show loading dialog if saving via API
-    if (imeiToUse != null && imeiToUse.isNotEmpty) {
+    bool hasChanges = false;
+    Map<String, dynamic> patch = {};
+
+    if (widget.category == SettingsCategory.profile) {
+      hasChanges = !_areMapsEqual(_data['profile'], widget.settingsData['profile']);
+    } else if (widget.category == SettingsCategory.health) {
+      hasChanges = !_areMapsEqual(_data['health'], widget.settingsData['health']);
+      if (hasChanges) patch['health'] = _data['health'];
+    } else if (widget.category == SettingsCategory.step) {
+      hasChanges = !_areMapsEqual(_data['step'], widget.settingsData['step']);
+      if (hasChanges) patch['step'] = _data['step'];
+    } else if (widget.category == SettingsCategory.sleep) {
+      hasChanges = !_areMapsEqual(_data['sleep'], widget.settingsData['sleep']);
+      if (hasChanges) patch['sleep'] = _data['sleep'];
+    } else if (widget.category == SettingsCategory.safety) {
+      hasChanges = !_areMapsEqual(_data['safety'], widget.settingsData['safety']);
+      if (hasChanges) patch['safety'] = _data['safety'];
+    } else if (widget.category == SettingsCategory.location ||
+        widget.category == SettingsCategory.call ||
+        widget.category == SettingsCategory.watch) {
+      final locationChanged = !_areMapsEqual(_data['location'], widget.settingsData['location']);
+      final callChanged = !_areMapsEqual(_data['call'], widget.settingsData['call']);
+      final watchChanged = !_areMapsEqual(_data['watch'], widget.settingsData['watch']);
+      hasChanges = locationChanged || callChanged || watchChanged;
+      if (locationChanged) patch['location'] = _data['location'];
+      if (callChanged) patch['call'] = _data['call'];
+      if (watchChanged) patch['watch'] = _data['watch'];
+    }
+
+    if (hasChanges && imeiToUse != null && imeiToUse.isNotEmpty) {
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -53,49 +101,46 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
           child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
-    }
 
-    try {
-      if (widget.category == SettingsCategory.profile && imeiToUse != null) {
-        final profile = _data['profile'] as Map<String, dynamic>?;
-        if (profile != null) {
-          final height = (profile['height'] as num?)?.toInt() ?? 175;
-          final weight = (profile['weight'] as num?)?.toDouble() ?? 70.0;
-          final rawBirthday = profile['birthday']?.toString() ?? '19900101';
-          final birthday = rawBirthday.replaceAll(RegExp(r'\D'), '');
-          final formattedBirthday = birthday.length >= 8 ? birthday.substring(0, 8) : '19900101';
-          final sex = profile['sex']?.toString() ?? 'Male';
-          final int genderInt = (sex.toLowerCase() == 'male') ? 1 : 0;
+      try {
+        if (widget.category == SettingsCategory.profile) {
+          final profile = _data['profile'] as Map<String, dynamic>?;
+          if (profile != null) {
+            final height = (profile['height'] as num?)?.toInt() ?? 175;
+            final weight = (profile['weight'] as num?)?.toDouble() ?? 70.0;
+            final rawBirthday = profile['birthday']?.toString() ?? '19900101';
+            final birthday = rawBirthday.replaceAll(RegExp(r'\D'), '');
+            final formattedBirthday = birthday.length >= 8 ? birthday.substring(0, 8) : '19900101';
+            final sex = profile['sex']?.toString() ?? 'Male';
+            final int genderInt = (sex.toLowerCase() == 'male') ? 1 : 0;
 
-          await _deviceRepository.setProfile(
+            await _deviceRepository.setProfile(
+              imei: imeiToUse,
+              height: height,
+              weight: weight,
+              birthday: formattedBirthday,
+              gender: genderInt,
+            );
+          }
+        } else {
+          await _deviceRepository.saveSettings(
             imei: imeiToUse,
-            height: height,
-            weight: weight,
-            birthday: formattedBirthday,
-            gender: genderInt,
+            patch: patch,
           );
         }
-      } else if (widget.category == SettingsCategory.health && imeiToUse != null) {
-        // Sync entire health object (including HR, BP, SpO2 intervals) upon exit
-        await _deviceRepository.saveSettings(
-          imei: imeiToUse,
-          patch: {
-            'health': _data['health'],
-          },
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save settings to server: $e'),
-            backgroundColor: const Color(0xFFB00020),
-          ),
-        );
-      }
-    } finally {
-      if (mounted && imeiToUse != null && imeiToUse.isNotEmpty) {
-        Navigator.of(context).pop(); // Dismiss loading indicator
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to save settings to server: $e'),
+              backgroundColor: const Color(0xFFB00020),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          Navigator.of(context).pop(); // Dismiss loading indicator
+        }
       }
     }
 
@@ -701,8 +746,17 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
   // 4. Safety Settings
   // ---------------------------------------------------------------------
   Widget _buildSafetySettingsGroup() {
-    final sos = _data['sos'] as Map<String, dynamic>;
-    final fall = _data['fall'] as Map<String, dynamic>;
+    final safety = _data['safety'] as Map<String, dynamic>? ?? {
+      'sos': {'switch_state': 1, 'rotation': '3'},
+      'fall_warning': {'switch_state': 0},
+    };
+    _data['safety'] ??= safety;
+
+    final sos = safety['sos'] as Map<String, dynamic>? ?? {'switch_state': 1, 'rotation': '3'};
+    safety['sos'] ??= sos;
+
+    final fall = safety['fall_warning'] as Map<String, dynamic>? ?? {'switch_state': 0};
+    safety['fall_warning'] ??= fall;
 
     final List<Map<String, dynamic>> defaultSosList = [
       {'name': 'Father (Parent)', 'phone': '0912345678', 'priority': 1},
@@ -736,7 +790,7 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
               onTap: () => _editValue(
                 'SOS Rotation Count',
                 sos['rotation'].toString(),
-                (val) => setState(() => sos['rotation'] = int.tryParse(val) ?? 3),
+                (val) => setState(() => sos['rotation'] = val),
               ),
             ),
             _buildSwitchTile(
@@ -820,14 +874,73 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
   // 5. Call & System Detail
   // ---------------------------------------------------------------------
   Widget _buildCommunicationAndSystem() {
-    final call = _data['call'] as Map<String, dynamic>;
-    final sms = call['message'] as Map<String, dynamic>;
-    final answer = call['answer_mode'] as Map<String, dynamic>;
-    final location = _data['location'] as Map<String, dynamic>;
-    final watch = _data['watch'] as Map<String, dynamic>;
+    // Safely extract maps or initialize with default schemas if missing
+    final call = _data['call'] as Map<String, dynamic>? ?? {
+      'message': {'switch_state': 1},
+      'incoming_call_limit': {'switch_state': 0},
+      'answer_mode': {'value': 1},
+    };
+    _data['call'] ??= call;
 
-    return Column(
-      children: [
+    final sms = call['message'] as Map<String, dynamic>? ?? {'switch_state': 1};
+    call['message'] ??= sms;
+
+    final incomingCallLimit = call['incoming_call_limit'] as Map<String, dynamic>? ?? {'switch_state': 0};
+    call['incoming_call_limit'] ??= incomingCallLimit;
+
+    final answer = call['answer_mode'] as Map<String, dynamic>? ?? {'value': 1};
+    call['answer_mode'] ??= answer;
+
+    final location = _data['location'] as Map<String, dynamic>? ?? {'interval': 1440};
+    _data['location'] ??= location;
+
+    final watch = _data['watch'] as Map<String, dynamic>? ?? {
+      'scene_mode': {'value': 3},
+      'dial': {'switch_state': 1},
+      'unlock_password': {'switch_state': 1},
+      'volume': {'value': 51},
+      'wrist_lift': {'switch_state': 1},
+      'time_format_mode': {'value': 24},
+      'find_my_watch': {'switch_state': 1},
+      'watch_lost': {'switch_state': 0},
+      'power_save_mode': {'switch_state': 0},
+      'low_power_battery': {'value': 60},
+      'language': {'value': 'cn'},
+    };
+    _data['watch'] ??= watch;
+
+    // Ensure all individual watch settings sub-maps are present:
+    final watchVolume = watch['volume'] as Map<String, dynamic>? ?? {'value': 51};
+    watch['volume'] ??= watchVolume;
+
+    final watchWristLift = watch['wrist_lift'] as Map<String, dynamic>? ?? {'switch_state': 1};
+    watch['wrist_lift'] ??= watchWristLift;
+
+    final watchDial = watch['dial'] as Map<String, dynamic>? ?? {'switch_state': 1};
+    watch['dial'] ??= watchDial;
+
+    final watchUnlockPassword = watch['unlock_password'] as Map<String, dynamic>? ?? {'switch_state': 1};
+    watch['unlock_password'] ??= watchUnlockPassword;
+
+    final watchTimeFormatMode = watch['time_format_mode'] as Map<String, dynamic>? ?? {'value': 24};
+    watch['time_format_mode'] ??= watchTimeFormatMode;
+
+    final watchPowerSaveMode = watch['power_save_mode'] as Map<String, dynamic>? ?? {'switch_state': 0};
+    watch['power_save_mode'] ??= watchPowerSaveMode;
+
+    final watchLowPowerBattery = watch['low_power_battery'] as Map<String, dynamic>? ?? {'value': 60};
+    watch['low_power_battery'] ??= watchLowPowerBattery;
+
+    final watchFindMyWatch = watch['find_my_watch'] as Map<String, dynamic>? ?? {'switch_state': 1};
+    watch['find_my_watch'] ??= watchFindMyWatch;
+
+    final watchLost = watch['watch_lost'] as Map<String, dynamic>? ?? {'switch_state': 0};
+    watch['watch_lost'] ??= watchLost;
+
+    final List<Widget> cards = [];
+
+    if (widget.category == SettingsCategory.call) {
+      cards.add(
         _buildCardGroup(
           title: 'Calls & Messages Protection',
           icon: Icons.security_rounded,
@@ -840,15 +953,17 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
             ),
             _buildSwitchTile(
               title: 'Block Unknown Calls (Whitelist Only)',
-              value: call['whitelist_only'] == 1,
-              onChanged: (v) => setState(() => call['whitelist_only'] = v ? 1 : 0),
+              value: incomingCallLimit['switch_state'] == 1,
+              onChanged: (v) => setState(() => incomingCallLimit['switch_state'] = v ? 1 : 0),
             ),
             _buildInfoTile('Call Answering Mode', answer['value'] == 1 ? 'Auto Answer' : 'Manual Answer'),
           ],
         ),
+      );
+    }
 
-        const SizedBox(height: 16),
-
+    if (widget.category == SettingsCategory.location) {
+      cards.add(
         _buildCardGroup(
           title: 'Location & Sync Frequency',
           icon: Icons.my_location_rounded,
@@ -865,9 +980,11 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
             ),
           ],
         ),
+      );
+    }
 
-        const SizedBox(height: 16),
-
+    if (widget.category == SettingsCategory.watch) {
+      cards.add(
         _buildCardGroup(
           title: 'System Volume & Display',
           icon: Icons.volume_up_rounded,
@@ -882,11 +999,11 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
                   SizedBox(
                     width: 140,
                     child: Slider(
-                      value: ((watch['volume']?['value'] ?? 80) as num).toDouble(),
+                      value: ((watchVolume['value'] ?? 80) as num).toDouble(),
                       min: 0,
                       max: 100,
                       divisions: 10,
-                      onChanged: (v) => setState(() => watch['volume']['value'] = v.toInt()),
+                      onChanged: (v) => setState(() => watchVolume['value'] = v.toInt()),
                     ),
                   ),
                 ],
@@ -894,21 +1011,20 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
             ),
             _buildSwitchTile(
               title: 'Raise Wrist to Wake Screen',
-              value: watch['raise_wrist_to_wake'] == 1,
-              onChanged: (v) => setState(() => watch['raise_wrist_to_wake'] = v ? 1 : 0),
+              value: watchWristLift['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchWristLift['switch_state'] = v ? 1 : 0),
             ),
             _buildSwitchTile(
               title: 'Watch Face Switcher',
-              value: watch['dial_switch'] == 1,
-              onChanged: (v) => setState(() => watch['dial_switch'] = v ? 1 : 0),
+              value: watchDial['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchDial['switch_state'] = v ? 1 : 0),
             ),
-            _buildInfoTile('Time Display Format', '${watch['time_format_mode']['value']}-hour format'),
+            _buildInfoTile('Time Display Format', '${watchTimeFormatMode['value']}-hour format'),
             _buildInfoTile('Watch Language', 'English'),
           ],
         ),
-
-        const SizedBox(height: 16),
-
+      );
+      cards.add(
         _buildCardGroup(
           title: 'Security & Power Management',
           icon: Icons.battery_charging_full_rounded,
@@ -916,36 +1032,48 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
           children: [
             _buildSwitchTile(
               title: 'Watch Lockscreen Password',
-              value: watch['passcode']?['switch_state'] == 1,
-              onChanged: (v) => setState(() => watch['passcode']['switch_state'] = v ? 1 : 0),
+              value: watchUnlockPassword['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchUnlockPassword['switch_state'] = v ? 1 : 0),
             ),
             _buildSwitchTile(
               title: 'Power Saver Mode',
-              value: watch['power_save_mode'] == 1,
-              onChanged: (v) => setState(() => watch['power_save_mode'] = v ? 1 : 0),
+              value: watchPowerSaveMode['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchPowerSaveMode['switch_state'] = v ? 1 : 0),
             ),
             _buildNumberTile(
               title: 'Low Battery Warning Limit',
-              value: '${watch['low_battery_warning']['value']}%',
+              value: '${watchLowPowerBattery['value']}%',
               onTap: () => _editValue(
                 'Low Battery Limit (%)',
-                watch['low_battery_warning']['value'].toString(),
-                (val) => setState(() => watch['low_battery_warning']['value'] = int.tryParse(val) ?? 20),
+                watchLowPowerBattery['value'].toString(),
+                (val) => setState(() => watchLowPowerBattery['value'] = int.tryParse(val) ?? 20),
               ),
             ),
             _buildSwitchTile(
               title: 'Find My Watch (Buzzer Sound)',
-              value: watch['find_device_buzzer'] == 1,
-              onChanged: (v) => setState(() => watch['find_device_buzzer'] = v ? 1 : 0),
+              value: watchFindMyWatch['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchFindMyWatch['switch_state'] = v ? 1 : 0),
             ),
             _buildSwitchTile(
               title: 'Watch Removal / Anti-Loss Alert',
-              value: watch['wear_detect'] == 1,
-              onChanged: (v) => setState(() => watch['wear_detect'] = v ? 1 : 0),
+              value: watchLost['switch_state'] == 1,
+              onChanged: (v) => setState(() => watchLost['switch_state'] = v ? 1 : 0),
             ),
           ],
         ),
-      ],
+      );
+    }
+
+    final List<Widget> children = [];
+    for (int i = 0; i < cards.length; i++) {
+      children.add(cards[i]);
+      if (i < cards.length - 1) {
+        children.add(const SizedBox(height: 16));
+      }
+    }
+
+    return Column(
+      children: children,
     );
   }
 
@@ -1066,53 +1194,6 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        _buildCardGroup(
-          title: 'Danger Zone - Factory Reset',
-          icon: Icons.warning_amber_rounded,
-          iconColor: const Color(0xFFB00020),
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Factory reset will erase all local records and settings on the watch. This action cannot be undone!',
-                    style: TextStyle(fontSize: 13, color: Color(0xFFB00020), height: 1.4),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _confirmRemoteCommand(
-                        title: 'Factory Reset',
-                        message: 'WARNING: Are you sure you want to reset the watch to factory defaults? All data will be lost.',
-                        confirmText: 'Confirm Reset',
-                        color: const Color(0xFFB00020),
-                        onConfirmed: () => _executeRemoteCommand(
-                          action: 'factory-reset',
-                          actionName: 'Factory Reset',
-                          successMsg: 'Factory reset command sent!',
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB00020),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      icon: const Icon(Icons.restore_rounded, size: 18),
-                      label: const Text('Factory Reset', style: TextStyle(fontWeight: FontWeight.w800)),
-                    ),
                   ),
                 ],
               ),
@@ -1866,7 +1947,8 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
   }
 
   void _showBpIntervalDialog(Map<String, dynamic> bp) {
-    final controller = TextEditingController(text: bp['interval']?.toString() ?? '60');
+    final String initialInterval = bp['interval']?.toString() ?? '60';
+    final controller = TextEditingController(text: initialInterval);
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -1916,6 +1998,13 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
                 setState(() {
                   bp['interval'] = intervalValue;
                 });
+                
+                final hasChanges = intervalValue != initialInterval;
+                if (!hasChanges) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+
                 if (widget.imei != null && widget.imei!.isNotEmpty) {
                   try {
                     await _deviceRepository.saveSettings(
@@ -1956,7 +2045,8 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
     );
   }
   void _showHrIntervalDialog(Map<String, dynamic> hr) {
-    final controller = TextEditingController(text: hr['interval']?.toString() ?? '10');
+    final String initialInterval = hr['interval']?.toString() ?? '10';
+    final controller = TextEditingController(text: initialInterval);
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -2007,6 +2097,12 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
                   hr['interval'] = intervalVal;
                 });
 
+                final hasChanges = intervalVal != initialInterval;
+                if (!hasChanges) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+
                 if (widget.imei != null && widget.imei!.isNotEmpty) {
                   try {
                     await _deviceRepository.saveSettings(
@@ -2051,7 +2147,8 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
   // SpO2 Interval Dialog (Immediate API Sync)
   // ---------------------------------------------------------------------
   void _showSpo2IntervalDialog(Map<String, dynamic> bo) {
-    final controller = TextEditingController(text: bo['interval']?.toString() ?? '30');
+    final String initialInterval = bo['interval']?.toString() ?? '30';
+    final controller = TextEditingController(text: initialInterval);
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -2101,6 +2198,12 @@ class _SettingsDetailPageState extends State<SettingsDetailPage> {
                 setState(() {
                   bo['interval'] = intervalVal;
                 });
+
+                final hasChanges = intervalVal != initialInterval;
+                if (!hasChanges) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
 
                 if (widget.imei != null && widget.imei!.isNotEmpty) {
                   try {

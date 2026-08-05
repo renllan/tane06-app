@@ -32,9 +32,12 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
   late double _weight; // kg
   late DateTime _birthday;
 
+  DeviceProfile? _loadedProfile;
+
   @override
   void initState() {
     super.initState();
+    _loadedProfile = widget.initialProfile;
     final p = widget.initialProfile ??
         const DeviceProfile(
           height: 170,
@@ -97,6 +100,7 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
     try {
       final profile = await _repository.fetchProfile(imei: widget.imei);
       if (profile != null && mounted) {
+        _loadedProfile = profile;
         setState(() {
           _gender = profile.gender;
           _height = profile.height;
@@ -112,17 +116,28 @@ class _WearerProfilePageState extends State<WearerProfilePage> {
   }
 
   Future<void> _handleSave() async {
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
-
     final profile = DeviceProfile(
       height: _height,
       weight: _weight,
       birthday: _formattedBirthdayApi,
       gender: _gender,
     );
+
+    if (_loadedProfile != null) {
+      final hasChanges = profile.height != _loadedProfile!.height ||
+          profile.weight != _loadedProfile!.weight ||
+          profile.birthday != _loadedProfile!.birthday ||
+          profile.gender != _loadedProfile!.gender;
+      if (!hasChanges) {
+        Navigator.of(context).pop(profile);
+        return;
+      }
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
 
     try {
       await _repository.saveProfile(

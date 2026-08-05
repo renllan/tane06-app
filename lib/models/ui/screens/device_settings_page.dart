@@ -503,14 +503,9 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
               ),
             );
             if (updatedSettings != null) {
-              // Compute the diff between old and new settings to PATCH only changes
-              final patch = _computeSettingsDiff(_settings!, updatedSettings);
               setState(() {
                 _settings = updatedSettings;
               });
-              if (patch.isNotEmpty) {
-                _saveSettings(patch);
-              }
             }
           },
           child: Padding(

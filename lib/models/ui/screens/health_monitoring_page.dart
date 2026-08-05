@@ -235,7 +235,14 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
         4: 'body-temperature',
       };
       final type = typeMap[_tabController.index] ?? 'heart-rate';
-      await _repo.requestMeasurement(imei: imei, type: type);
+      if (type == 'blood-pressure') {
+        await Future.wait([
+          _repo.requestMeasurement(imei: imei, type: 'blood-pressure'),
+          _repo.requestMeasurement(imei: imei, type: 'heart-rate'),
+        ]);
+      } else {
+        await _repo.requestMeasurement(imei: imei, type: type);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -585,14 +592,49 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Summary card
-  // ─────────────────────────────────────────────────────────────────────────
-
   Widget _buildSummaryCard(_MetricConfig cfg, List<HealthDataRecord> records) {
     final latest = records.first;
     final latestVal = cfg.valueExtractor(latest);
     final latestSecondary = cfg.secondaryExtractor?.call(latest);
+
+    double? matchedHr;
+    if (cfg.title == 'Blood Pressure') {
+      final d = latest.data;
+      if (d is Map) {
+        final hrVal = d['heart_rate'] ?? d['heartRate'] ?? d['hr'] ?? d['pulse'] ?? d['bpm'] ?? d['rate'] ?? d['pulse_rate'] ?? d['pulseRate'];
+        if (hrVal is num) matchedHr = hrVal.toDouble();
+        else if (hrVal is String) matchedHr = double.tryParse(hrVal);
+      } else if (d is String) {
+        final numbers = d
+            .trim()
+            .split(RegExp(r'[/\s\-,]'))
+            .map(double.tryParse)
+            .whereType<double>()
+            .toList();
+        if (numbers.length >= 3) {
+          matchedHr = numbers[2];
+        }
+      }
+
+      if (matchedHr == null && _records.isNotEmpty && _records[0].isNotEmpty) {
+        final hrRecords = _records[0];
+        HealthDataRecord? closestHrRecord;
+        int minDiff = 180000;
+        for (final hrRec in hrRecords) {
+          final diff = (hrRec.timestamp - latest.timestamp).abs();
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestHrRecord = hrRec;
+          }
+        }
+        if (closestHrRecord != null) {
+          final hrVal = _hrExtractor(closestHrRecord);
+          if (hrVal > 0) {
+            matchedHr = hrVal;
+          }
+        }
+      }
+    }
 
     // Stats over all records
     final vals = records.map(cfg.valueExtractor).where((v) => v > 0).toList();
@@ -659,7 +701,7 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
           ),
           const SizedBox(height: 20),
           // Big value
-          if (cfg.title == 'Blood Pressure' && latestSecondary != null)
+          if (cfg.title == 'Blood Pressure' && latestSecondary != null) ...[
             RichText(
               text: TextSpan(children: [
                 TextSpan(
@@ -1791,6 +1833,45 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
     final val = cfg.valueExtractor(record);
     final val2 = cfg.secondaryExtractor?.call(record);
 
+    double? matchedHr;
+    if (cfg.title == 'Blood Pressure') {
+      final d = record.data;
+      if (d is Map) {
+        final hrVal = d['heart_rate'] ?? d['heartRate'] ?? d['hr'] ?? d['pulse'] ?? d['bpm'] ?? d['rate'] ?? d['pulse_rate'] ?? d['pulseRate'];
+        if (hrVal is num) matchedHr = hrVal.toDouble();
+        else if (hrVal is String) matchedHr = double.tryParse(hrVal);
+      } else if (d is String) {
+        final numbers = d
+            .trim()
+            .split(RegExp(r'[/\s\-,]'))
+            .map(double.tryParse)
+            .whereType<double>()
+            .toList();
+        if (numbers.length >= 3) {
+          matchedHr = numbers[2];
+        }
+      }
+
+      if (matchedHr == null && _records.isNotEmpty && _records[0].isNotEmpty) {
+        final hrRecords = _records[0];
+        HealthDataRecord? closestHrRecord;
+        int minDiff = 180000;
+        for (final hrRec in hrRecords) {
+          final diff = (hrRec.timestamp - record.timestamp).abs();
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestHrRecord = hrRec;
+          }
+        }
+        if (closestHrRecord != null) {
+          final hrVal = _hrExtractor(closestHrRecord);
+          if (hrVal > 0) {
+            matchedHr = hrVal;
+          }
+        }
+      }
+    }
+
     String displayValue;
     if (cfg.title == 'Blood Pressure' && val2 != null && val2 > 0) {
       displayValue =
@@ -1840,7 +1921,9 @@ class _HealthMonitoringPageState extends State<HealthMonitoringPage>
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  record.type.toUpperCase(),
+                  matchedHr != null
+                      ? '${record.type.toUpperCase()} • HR: ${matchedHr.toInt()} bpm'
+                      : record.type.toUpperCase(),
                   style: GoogleFonts.dmSans(
                       fontSize: 10, color: AppColors.textTertiary),
                 ),

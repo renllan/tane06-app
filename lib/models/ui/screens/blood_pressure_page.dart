@@ -28,6 +28,7 @@ class BloodPressurePage extends StatefulWidget {
 
   static const Color systolicColor = Color(0xFFFF5252);
   static const Color diastolicColor = Color(0xFF4B7BEC);
+  static const Color heartRateColor = Color(0xFF9B5DE5);
 
   const BloodPressurePage({
     super.key,
@@ -48,6 +49,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   final List<BloodPressureReading> _userCustomReadings = [];
   List<BloodPressureReading>? _apiReadings;
   bool _isLoadingApi = false;
+  BloodPressureReading? _touchedReading;
 
   @override
   void initState() {
@@ -81,31 +83,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       final bpRecords = results[0];
       final hrRecords = results[1];
 
-      // 2. Build a map of Heart Rates indexed by timestamp/time window
-      // Key: "YYYY-MM-DD HH:mm" or exact epoch millisecond
-      final Map<String, double> hrLookupMap = {};
-      for (final hrRecord in hrRecords) {
-        final dt = hrRecord.dateTime;
-        final timeKey = '${dt.year}-${dt.month}-${dt.day} ${dt.hour}:${dt.minute}';
-        
-        double? extractedHr;
-        if (hrRecord.data is Map) {
-          final map = hrRecord.data as Map;
-          final rawVal = map['heart_rate'] ?? map['heartRate'] ?? map['hr'] ?? map['bpm'] ?? map['value'] ?? map['val'];
-          if (rawVal is num) extractedHr = rawVal.toDouble();
-          else if (rawVal is String) extractedHr = double.tryParse(rawVal);
-        } else if (hrRecord.data is num) {
-          extractedHr = (hrRecord.data as num).toDouble();
-        } else if (hrRecord.data is String) {
-          extractedHr = double.tryParse(hrRecord.data as String);
-        }
-
-        if (extractedHr != null) {
-          hrLookupMap[timeKey] = extractedHr;
-        }
-      }
-
-      // 3. Parse BP records and pair with nearest matching Heart Rate
+      // 2. Parse BP records and pair with nearest matching Heart Rate (within 3 minutes)
       final List<BloodPressureReading> parsedList = [];
 
       for (final bpRecord in bpRecords) {
@@ -113,12 +91,32 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         if (bpReading == null) continue;
 
         // If BP record already contains HR internally, keep it;
-        // otherwise match against the separate HR API results by timestamp minute
+        // otherwise match against the separate HR API results by timestamp proximity
         if (bpReading.heartRate != null) {
           parsedList.add(bpReading);
         } else {
-          final timeKey = '${bpReading.time.year}-${bpReading.time.month}-${bpReading.time.day} ${bpReading.time.hour}:${bpReading.time.minute}';
-          final matchedHr = hrLookupMap[timeKey];
+          double? matchedHr;
+          int minDiff = 180000; // 3 minutes
+          for (final hrRecord in hrRecords) {
+            final diff = (hrRecord.timestamp - bpRecord.timestamp).abs();
+            if (diff < minDiff) {
+              minDiff = diff;
+              double? extractedHr;
+              if (hrRecord.data is Map) {
+                final map = hrRecord.data as Map;
+                final rawVal = map['heart_rate'] ?? map['heartRate'] ?? map['hr'] ?? map['bpm'] ?? map['value'] ?? map['val'];
+                if (rawVal is num) extractedHr = rawVal.toDouble();
+                else if (rawVal is String) extractedHr = double.tryParse(rawVal);
+              } else if (hrRecord.data is num) {
+                extractedHr = (hrRecord.data as num).toDouble();
+              } else if (hrRecord.data is String) {
+                extractedHr = double.tryParse(hrRecord.data as String);
+              }
+              if (extractedHr != null) {
+                matchedHr = extractedHr;
+              }
+            }
+          }
 
           parsedList.add(
             BloodPressureReading(
@@ -237,18 +235,30 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
 
     try {
-      final res = await _deviceRepository.requestMeasurement(
-        imei: imeiToUse,
-        type: 'blood-pressure',
-      );
+      final results = await Future.wait([
+        _deviceRepository.requestMeasurement(
+          imei: imeiToUse,
+          type: 'blood-pressure',
+        ),
+        _deviceRepository.requestMeasurement(
+          imei: imeiToUse,
+          type: 'heart-rate',
+        ),
+      ]);
       if (!mounted) return;
       Navigator.of(context).pop();
 
-      final isSuccess = res['success'] == true;
-      final serverMsg = res['message'] as String?;
+      final isBPSuccess = results[0]['success'] == true;
+      final isHRSuccess = results[1]['success'] == true;
+      final isSuccess = isBPSuccess && isHRSuccess;
+
       final msg = isSuccess
-          ? (serverMsg ?? 'Measurement command sent! Syncing latest BP data...')
-          : (serverMsg ?? 'Failed to send measurement command');
+          ? 'Blood pressure and heart rate measurement commands sent!'
+          : (!isBPSuccess && !isHRSuccess
+              ? 'Failed to send measurement commands'
+              : (!isBPSuccess
+                  ? 'Failed to send blood pressure command'
+                  : 'Failed to send heart rate command'));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -414,6 +424,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             onPressed: () {
               setState(() {
                 _selectedDay = _selectedDay.subtract(const Duration(days: 1));
+                _touchedReading = null;
               });
               _fetchHealthDataApi();
             },
@@ -443,6 +454,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               if (picked != null) {
                 setState(() {
                   _selectedDay = picked;
+                  _touchedReading = null;
                 });
                 _fetchHealthDataApi();
               }
@@ -483,6 +495,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 ? () {
                     setState(() {
                       _selectedDay = _selectedDay.add(const Duration(days: 1));
+                      _touchedReading = null;
                     });
                     _fetchHealthDataApi();
                   }
@@ -1160,6 +1173,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                           final intervalValue = (int.tryParse(val) ?? 60).clamp(0, 1440).toString();
                           final amTimeVal = _sanitizeBpTime(amController.text, '07:00');
                           final pmTimeVal = _sanitizeBpTime(pmController.text, '18:00');
+                          
+                          final hasChanges = intervalValue != currentInterval ||
+                              amTimeVal != currentAmTime ||
+                              pmTimeVal != currentPmTime;
+                          if (!hasChanges) {
+                            Navigator.of(ctx).pop();
+                            return;
+                          }
+
                           if (widget.imei != null && widget.imei!.isNotEmpty) {
                             try {
                               await _deviceRepository.saveSettings(
@@ -1317,8 +1339,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   Widget _buildWarningValuesSection() {
-    final sys = _lastReading?.systolic ?? 120;
-    final dia = _lastReading?.diastolic ?? 80;
+    final displayReading = _touchedReading ?? _lastReading;
+    final sys = displayReading?.systolic ?? 120;
+    final dia = displayReading?.diastolic ?? 80;
     final statusInfo = _evaluateBPStatus(sys, dia);
     final Color statusColor = statusInfo['color'] as Color;
     final Color bgColor = statusInfo['bgColor'] as Color;
@@ -1727,6 +1750,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       onTap: () {
         setState(() {
           _selectedFilter = filter;
+          _touchedReading = null;
         });
       },
       child: AnimatedContainer(
@@ -1749,7 +1773,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 
   Widget _buildLastReadingCard() {
-    final r = _lastReading;
+    final r = _touchedReading ?? _lastReading;
     if (r == null) {
       return Container(
         width: double.infinity,
@@ -1911,9 +1935,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                       runSpacing: 4,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Text(
-                          'Latest Reading',
-                          style: TextStyle(
+                        Text(
+                          _touchedReading != null ? 'Selected Reading' : 'Latest Reading',
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
@@ -2199,9 +2223,14 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
     final systolicSpots = <FlSpot>[];
     final diastolicSpots = <FlSpot>[];
+    final heartRateSpots = <FlSpot>[];
     for (var i = 0; i < readings.length; i++) {
-      systolicSpots.add(FlSpot(i.toDouble(), readings[i].systolic));
-      diastolicSpots.add(FlSpot(i.toDouble(), readings[i].diastolic));
+      final reading = readings[i];
+      systolicSpots.add(FlSpot(i.toDouble(), reading.systolic));
+      diastolicSpots.add(FlSpot(i.toDouble(), reading.diastolic));
+      if (reading.heartRate != null) {
+        heartRateSpots.add(FlSpot(i.toDouble(), reading.heartRate!));
+      }
     }
 
     return Container(
@@ -2221,6 +2250,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             children: [
               _legendDot(BloodPressurePage.systolicColor, 'Systolic'),
               _legendDot(BloodPressurePage.diastolicColor, 'Diastolic'),
+              _legendDot(BloodPressurePage.heartRateColor, 'Heart Rate'),
             ],
           ),
           const SizedBox(height: 12),
@@ -2228,7 +2258,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             child: LineChart(
               LineChartData(
                 minY: 40,
-                maxY: 160,
+                maxY: 180,
                 gridData: FlGridData(
                   show: true,
                   horizontalInterval: 20,
@@ -2241,7 +2271,20 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 20,
+                      reservedSize: 34,
+                      getTitlesWidget: (value, meta) => Text(
+                        value.toInt().toString(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -2279,22 +2322,49 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                   ),
                 ),
                 lineTouchData: LineTouchData(
+                  touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                    if (!event.isInterestedForInteractions ||
+                        touchResponse == null ||
+                        touchResponse.lineBarSpots == null ||
+                        touchResponse.lineBarSpots!.isEmpty) {
+                      setState(() {
+                        _touchedReading = null;
+                      });
+                      return;
+                    }
+                    final spotIndex = touchResponse.lineBarSpots!.first.spotIndex;
+                    if (spotIndex >= 0 && spotIndex < readings.length) {
+                      setState(() {
+                        _touchedReading = readings[spotIndex];
+                      });
+                    }
+                  },
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => AppColors.surfaceMedium,
                     getTooltipItems: (spots) {
                       if (spots.isEmpty) return [];
                       final idx = spots.first.spotIndex;
                       final reading = readings[idx];
-                      final hrText = reading.heartRate != null
-                          ? '\nHR: ${reading.heartRate!.toInt()} bpm'
-                          : '';
 
                       return spots.map((s) {
+                        if (s.barIndex == 2) {
+                          return LineTooltipItem(
+                            'HR: ${s.y.toInt()} bpm',
+                            const TextStyle(
+                              color: BloodPressurePage.heartRateColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          );
+                        }
+
                         final isSys = s.barIndex == 0;
+                        final baseLabel = isSys
+                            ? 'Sys: ${s.y.toInt()} mmHg'
+                            : 'Dia: ${s.y.toInt()} mmHg';
+
                         return LineTooltipItem(
-                          isSys
-                              ? 'Sys: ${s.y.toInt()} mmHg$hrText'
-                              : 'Dia: ${s.y.toInt()} mmHg',
+                          baseLabel,
                           TextStyle(
                             color: isSys
                                 ? BloodPressurePage.systolicColor
@@ -2357,6 +2427,22 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                           BloodPressurePage.diastolicColor.withOpacity(0.12),
                           BloodPressurePage.diastolicColor.withOpacity(0.0),
                         ],
+                      ),
+                    ),
+                  ),
+                  LineChartBarData(
+                    spots: heartRateSpots,
+                    isCurved: true,
+                    barWidth: 2.5,
+                    color: BloodPressurePage.heartRateColor,
+                    dashArray: [5, 4],
+                    dotData: FlDotData(
+                      show: heartRateSpots.isNotEmpty,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 3.5,
+                        color: BloodPressurePage.heartRateColor,
+                        strokeWidth: 2,
+                        strokeColor: Colors.white,
                       ),
                     ),
                   ),

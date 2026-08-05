@@ -149,7 +149,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
-              if (_currentIndex == 3)
+              if (_currentIndex == 1)
                 SliverToBoxAdapter(child: _buildProfileSection())
               else
                 SliverToBoxAdapter(child: _buildDevicesSection()),
@@ -614,26 +614,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       Row(children: [
                         Expanded(child: Text(d.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
                         if (rightBadge != null) rightBadge,
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary),
-                          onSelected: (val) {
-                            if (val == 'unbind') {
-                              _unbindDeviceDirectly(d);
-                            }
-                          },
-                          itemBuilder: (ctx) => [
-                            const PopupMenuItem(
-                              value: 'unbind',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.link_off_rounded, color: Color(0xFFFF453A), size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Unbind Device', style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
                       ]),
                       const SizedBox(height: 6),
                       Row(children: [
@@ -805,25 +785,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Add Device IconButton
-              IconButton(
-                icon: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: AppColors.primary,
-                    size: 22,
-                  ),
-                ),
-                onPressed: _openAddDevicePage,
-                tooltip: 'Add Device',
-              ),
             ],
           ),
         ),
@@ -854,8 +815,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 children: [
                   _buildNavItem(Icons.home_rounded, 'Home', _currentIndex == 0, () => setState(() => _currentIndex = 0)),
                   _buildNavItem(Icons.map_rounded, 'Map', false, _openMultiDeviceMapPage),
-                  _buildNavItem(Icons.watch_rounded, 'Devices', _currentIndex == 2, () => setState(() => _currentIndex = 2)),
-                  _buildNavItem(Icons.person_rounded, 'Profile', _currentIndex == 3, () => setState(() => _currentIndex = 3)),
+                  _buildNavItem(Icons.person_rounded, 'Profile', _currentIndex == 1, () => setState(() => _currentIndex = 1)),
                 ],
               ),
             ),
