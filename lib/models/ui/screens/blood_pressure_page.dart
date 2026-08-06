@@ -1943,6 +1943,37 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                             color: AppColors.textPrimary,
                           ),
                         ),
+                        if (_touchedReading != null)
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _touchedReading = null;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.bloodPressure.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.bloodPressure.withOpacity(0.3)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.restart_alt_rounded, size: 12, color: AppColors.bloodPressure),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Show Latest',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.bloodPressure,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         _buildDataSourceBadge(),
                       ],
                     ),
@@ -2322,21 +2353,21 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                   ),
                 ),
                 lineTouchData: LineTouchData(
+                  enabled: true,
+                  handleBuiltInTouches: true,
                   touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
-                    if (!event.isInterestedForInteractions ||
-                        touchResponse == null ||
-                        touchResponse.lineBarSpots == null ||
-                        touchResponse.lineBarSpots!.isEmpty) {
-                      setState(() {
-                        _touchedReading = null;
-                      });
-                      return;
-                    }
-                    final spotIndex = touchResponse.lineBarSpots!.first.spotIndex;
-                    if (spotIndex >= 0 && spotIndex < readings.length) {
-                      setState(() {
-                        _touchedReading = readings[spotIndex];
-                      });
+                    if (touchResponse != null &&
+                        touchResponse.lineBarSpots != null &&
+                        touchResponse.lineBarSpots!.isNotEmpty) {
+                      final spotIndex = touchResponse.lineBarSpots!.first.spotIndex;
+                      if (spotIndex >= 0 && spotIndex < readings.length) {
+                        final selectedReading = readings[spotIndex];
+                        if (_touchedReading != selectedReading) {
+                          setState(() {
+                            _touchedReading = selectedReading;
+                          });
+                        }
+                      }
                     }
                   },
                   touchTooltipData: LineTouchTooltipData(
