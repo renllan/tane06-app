@@ -10,7 +10,6 @@ import 'package:tane06_app/models/ui/screens/login_page.dart';
 import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/models/ui/widgets/metric_card.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
-import 'package:tane06_app/models/ui/widgets/temperature_widget.dart';
 import 'package:tane06_app/models/ui/widgets/quick_action_widget.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/repositories/device_repository.dart';

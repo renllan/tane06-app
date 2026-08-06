@@ -11,7 +11,6 @@ import 'package:tane06_app/models/mock_blood_pressure_data.dart';
 import 'package:tane06_app/models/ui/screens/metric_detail_page.dart';
 
 import 'package:tane06_app/models/ui/screens/device_settings_page.dart';
-import 'package:tane06_app/models/ui/screens/temperature_detail_page.dart';
 import 'package:tane06_app/models/ui/screens/step_count_page.dart';
 import 'package:tane06_app/models/ui/screens/watch_location_map_screen.dart';
 import 'package:tane06_app/models/ui/widgets/sleep_overview_card.dart';
